@@ -5,11 +5,24 @@
 /* Custom styles */
 html {
   min-height: 100vh;
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
   transition: background-image 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* Prevent horizontal scroll on mobile */
+* {
+  box-sizing: border-box;
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid hsl(96, 44%, 42%);
+  outline-offset: 2px;
 }
 
 /* Light theme background */
@@ -41,13 +54,44 @@ body {
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3; /* Standard property for compatibility */
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-/* Smooth scroll behavior */
-html {
-  scroll-behavior: smooth;
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .liquid-glass {
+    backdrop-filter: blur(8px) saturate(180%);
+    -webkit-backdrop-filter: blur(8px) saturate(180%);
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .liquid-glass {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid rgba(0, 0, 0, 0.8);
+  }
+  
+  .dark .liquid-glass {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Custom scrollbar */
@@ -68,4 +112,38 @@ html {
 
 ::-webkit-scrollbar-thumb:hover {
   opacity: 0.8;
+}
+
+/* Loading skeleton animations */
+@keyframes skeleton {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 200px 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
+}
+
+.dark .skeleton {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+/* Print styles */
+@media print {
+  .liquid-glass {
+    background: white !important;
+    border: 1px solid #ccc !important;
+    backdrop-filter: none !important;
+  }
+  
+  .dark .liquid-glass {
+    background: white !important;
+    color: black !important;
+  }
 }

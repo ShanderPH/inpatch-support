@@ -5,16 +5,14 @@ import { Select, SelectItem } from '@heroui/select';
 import { Button } from '@heroui/button';
 import { Chip } from '@heroui/chip';
 import { FiSearch, FiX, FiFilter } from 'react-icons/fi';
+
 import { useProjectStore } from '@/lib/store';
-import { Platform, TeamMember } from '@/types/project';
 
 const statusOptions = [
   { key: 'all', label: 'Todos os Status' },
-  { key: 'planning', label: 'Planejamento' },
-  { key: 'development', label: 'Desenvolvimento' },
-  { key: 'testing', label: 'Testes' },
-  { key: 'completed', label: 'Concluído' },
-  { key: 'on-hold', label: 'Pausado' },
+  { key: 'a-fazer', label: 'A Fazer' },
+  { key: 'em-andamento', label: 'Em Andamento' },
+  { key: 'concluido', label: 'Concluído' },
 ];
 
 const platformOptions = [
@@ -48,94 +46,99 @@ export const ProjectFilters = () => {
   } = useProjectStore();
 
   const filteredProjects = getFilteredProjects();
-  const hasActiveFilters = searchQuery || statusFilter !== 'all' || platformFilter !== 'all' || responsibleFilter !== 'all';
+  const hasActiveFilters =
+    searchQuery ||
+    statusFilter !== 'all' ||
+    platformFilter !== 'all' ||
+    responsibleFilter !== 'all';
 
   return (
     <div className="space-y-4">
       {/* Search Bar */}
       <div className="relative">
         <Input
-          placeholder="Buscar projetos..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          startContent={<FiSearch className="w-4 h-4 text-default-400" />}
+          classNames={{
+            base: 'max-w-full',
+            mainWrapper: 'h-full',
+            input: 'text-small',
+            inputWrapper:
+              'h-full font-normal text-default-500 bg-default-400/20 dark:bg-default-500/20',
+          }}
           endContent={
             searchQuery && (
               <Button
                 isIconOnly
+                className="min-w-unit-6 w-6 h-6"
                 size="sm"
                 variant="light"
                 onClick={() => setSearchQuery('')}
-                className="min-w-unit-6 w-6 h-6"
               >
                 <FiX className="w-3 h-3" />
               </Button>
             )
           }
-          classNames={{
-            base: "max-w-full",
-            mainWrapper: "h-full",
-            input: "text-small",
-            inputWrapper: "h-full font-normal text-default-500 bg-default-400/20 dark:bg-default-500/20",
-          }}
+          placeholder="Buscar projetos..."
+          startContent={<FiSearch className="w-4 h-4 text-default-400" />}
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
         />
       </div>
 
       {/* Filter Row */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Select
+          aria-label="Filtrar por status do projeto"
+          className="max-w-xs"
           placeholder="Status"
           selectedKeys={[statusFilter]}
-          onSelectionChange={(keys) => setStatusFilter(Array.from(keys)[0] as string)}
-          className="max-w-xs"
           size="sm"
           startContent={<FiFilter className="w-4 h-4" />}
-          aria-label="Filtrar por status do projeto"
+          onSelectionChange={keys =>
+            setStatusFilter(Array.from(keys)[0] as string)
+          }
         >
-          {statusOptions.map((option) => (
-            <SelectItem key={option.key}>
-              {option.label}
-            </SelectItem>
+          {statusOptions.map(option => (
+            <SelectItem key={option.key}>{option.label}</SelectItem>
           ))}
         </Select>
 
         <Select
+          aria-label="Filtrar por plataforma"
+          className="max-w-xs"
           placeholder="Plataforma"
           selectedKeys={[platformFilter]}
-          onSelectionChange={(keys) => setPlatformFilter(Array.from(keys)[0] as string)}
-          className="max-w-xs"
           size="sm"
-          aria-label="Filtrar por plataforma"
+          onSelectionChange={keys =>
+            setPlatformFilter(Array.from(keys)[0] as string)
+          }
         >
-          {platformOptions.map((option) => (
-            <SelectItem key={option.key}>
-              {option.label}
-            </SelectItem>
+          {platformOptions.map(option => (
+            <SelectItem key={option.key}>{option.label}</SelectItem>
           ))}
         </Select>
 
         <Select
+          aria-label="Filtrar por responsável"
+          className="max-w-xs"
           placeholder="Responsável"
           selectedKeys={[responsibleFilter]}
-          onSelectionChange={(keys) => setResponsibleFilter(Array.from(keys)[0] as string)}
-          className="max-w-xs"
           size="sm"
-          aria-label="Filtrar por responsável"
+          onSelectionChange={keys =>
+            setResponsibleFilter(Array.from(keys)[0] as string)
+          }
         >
-          {responsibleOptions.map((option) => (
-            <SelectItem key={option.key}>
-              {option.label}
-            </SelectItem>
+          {responsibleOptions.map(option => (
+            <SelectItem key={option.key}>{option.label}</SelectItem>
           ))}
         </Select>
 
         {hasActiveFilters && (
           <Button
-            size="sm"
-            variant="ghost"
             color="default"
-            onClick={clearFilters}
+            size="sm"
             startContent={<FiX className="w-4 h-4" />}
+            variant="ghost"
+            onClick={clearFilters}
           >
             Limpar Filtros
           </Button>
@@ -146,11 +149,7 @@ export const ProjectFilters = () => {
       {hasActiveFilters && (
         <div className="flex flex-wrap gap-2">
           {searchQuery && (
-            <Chip
-              size="sm"
-              variant="flat"
-              onClose={() => setSearchQuery('')}
-            >
+            <Chip size="sm" variant="flat" onClose={() => setSearchQuery('')}>
               Busca: "{searchQuery}"
             </Chip>
           )}
@@ -186,7 +185,9 @@ export const ProjectFilters = () => {
 
       {/* Results Count */}
       <div className="text-sm text-default-600">
-        {filteredProjects.length} projeto{filteredProjects.length !== 1 ? 's' : ''} encontrado{filteredProjects.length !== 1 ? 's' : ''}
+        {filteredProjects.length} projeto
+        {filteredProjects.length !== 1 ? 's' : ''} encontrado
+        {filteredProjects.length !== 1 ? 's' : ''}
       </div>
     </div>
   );

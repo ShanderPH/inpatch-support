@@ -14,7 +14,10 @@ interface ErrorBoundaryProps {
   fallback?: React.ComponentType<{ error?: Error; reset: () => void }>;
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
@@ -25,7 +28,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
+    // Log errors only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error caught by boundary:', error, errorInfo);
+    }
   }
 
   render() {
@@ -36,6 +42,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
       if (this.props.fallback) {
         const FallbackComponent = this.props.fallback;
+
         return <FallbackComponent error={this.state.error} reset={reset} />;
       }
 
@@ -51,7 +58,10 @@ interface ErrorFallbackProps {
   reset: () => void;
 }
 
-export const DefaultErrorFallback: React.FC<ErrorFallbackProps> = ({ error, reset }) => (
+export const DefaultErrorFallback: React.FC<ErrorFallbackProps> = ({
+  error,
+  reset,
+}) => (
   <div className="min-h-screen flex items-center justify-center p-4">
     <div className="liquid-glass p-8 max-w-md w-full text-center">
       <FiAlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-500" />
@@ -72,7 +82,10 @@ export const DefaultErrorFallback: React.FC<ErrorFallbackProps> = ({ error, rese
   </div>
 );
 
-export const ProjectErrorFallback: React.FC<ErrorFallbackProps> = ({ error, reset }) => (
+export const ProjectErrorFallback: React.FC<ErrorFallbackProps> = ({
+  error,
+  reset,
+}) => (
   <div className="liquid-glass p-6 text-center">
     <FiAlertTriangle className="w-12 h-12 mx-auto mb-3 text-red-500" />
     <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -82,10 +95,10 @@ export const ProjectErrorFallback: React.FC<ErrorFallbackProps> = ({ error, rese
       {error?.message || 'Não foi possível carregar os projetos.'}
     </p>
     <Button
-      size="sm"
       color="primary"
-      variant="ghost"
+      size="sm"
       startContent={<FiRefreshCw className="w-4 h-4" />}
+      variant="ghost"
       onClick={reset}
     >
       Tentar Novamente

@@ -1,0 +1,103 @@
+// Prisma Schema para inPatch Suporte
+// Integração com Supabase PostgreSQL
+// Seguindo padrões de Vibe Coding e arquitetura Next.js 15
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// MODELOS PRINCIPAIS
+// ============================================================================
+
+model Project {
+  id                 String          @id @default(cuid())
+  title              String
+  description        String?
+  progress           Int             @default(0) @db.SmallInt
+  platforms          Platform[]
+  responsible        TeamMember[]
+  imageUrl           String?         @map("image_url")
+  startDate          DateTime        @map("start_date") @default(now())
+  estimatedEndDate   DateTime        @map("estimated_end_date")
+  status             ProjectStatus   @default(A_FAZER)
+  priority           ProjectPriority @default(MEDIUM)
+  trelloCardId       String?         @unique @map("trello_card_id")
+  labels             String[]        @default([])
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+  
+  // Relations
+  syncHistory        SyncHistory[]
+  
+  @@map("projects")
+  @@index([status])
+  @@index([priority])
+  @@index([trelloCardId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model SyncHistory {
+  id          String     @id @default(cuid())
+  projectId   String     @map("project_id")
+  action      SyncAction
+  timestamp   DateTime   @default(now())
+  source      String     // "trello" | "manual" | "webhook" | "api"
+  details     Json?
+  success     Boolean    @default(true)
+  errorMessage String?   @map("error_message")
+  
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("sync_history")
+  @@index([projectId])
+  @@index([timestamp])
+  @@index([source])
+  @@index([success])
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum ProjectStatus {
+  A_FAZER      @map("a-fazer")
+  EM_ANDAMENTO @map("em-andamento")
+  CONCLUIDO    @map("concluido")
+}
+
+enum ProjectPriority {
+  LOW    @map("low")
+  MEDIUM @map("medium")
+  HIGH   @map("high")
+}
+
+enum Platform {
+  N8N              @map("N8N")
+  JIRA             @map("Jira")
+  HUBSPOT          @map("Hubspot")
+  BACKOFFICE       @map("Backoffice")
+  GOOGLE_WORKSPACE @map("Google Workspace")
+}
+
+enum TeamMember {
+  GUILHERME_SOUZA @map("Guilherme Souza")
+  FELIPE_BRAAT    @map("Felipe Braat")
+  TIAGO_TRIANI    @map("Tiago Triani")
+}
+
+enum SyncAction {
+  CREATED
+  UPDATED
+  DELETED
+  SYNCED
+  ERROR
+}

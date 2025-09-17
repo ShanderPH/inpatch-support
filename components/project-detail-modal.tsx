@@ -21,7 +21,12 @@ import {
 
 import { Project, Platform } from '@/types/project';
 
-interface ProjectDetailModalProps {
+interface ActionHandlers {
+  onEdit?: (project: Project) => void;
+  onDelete?: (project: Project) => void;
+}
+
+interface ProjectDetailModalProps extends ActionHandlers {
   project: Project | null;
   isOpen: boolean;
   onClose: () => void;
@@ -69,6 +74,8 @@ export const ProjectDetailModal = ({
   project,
   isOpen,
   onClose,
+  onEdit,
+  onDelete,
 }: ProjectDetailModalProps) => {
   if (!project) return null;
 
@@ -244,6 +251,20 @@ export const ProjectDetailModal = ({
           <Button color="default" variant="light" onPress={onClose}>
             Fechar
           </Button>
+          {project && (
+            <>
+              <Button variant="flat" onPress={() => onEdit?.(project)}>
+                Editar
+              </Button>
+              <Button
+                color="danger"
+                variant="flat"
+                onPress={() => onDelete?.(project)}
+              >
+                Excluir
+              </Button>
+            </>
+          )}
           <Button
             color="primary"
             isDisabled={!project.trelloCardId}

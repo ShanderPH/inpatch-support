@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiRefreshCw, FiTrendingUp, FiUsers, FiActivity } from 'react-icons/fi';
 import { Button } from '@heroui/button';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 
 import { Project } from '@/types/project';
 import { ProjectGroup } from '@/components/project-group';
@@ -22,10 +22,13 @@ import {
 } from '@/components/loading-skeleton';
 import { title, subtitle } from '@/components/primitives';
 import { useProjectStore } from '@/lib/store';
+import { ProjectEditor } from '@/components/project-editor';
 
 export default function Home() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editorProject, setEditorProject] = useState<Project | null>(null);
 
   const {
     loading,
@@ -106,6 +109,38 @@ export default function Home() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedProject(null);
+  };
+
+  const handleCreateNew = () => {
+    setEditorProject(null);
+    setIsEditorOpen(true);
+  };
+
+  const handleEditProject = (project: Project) => {
+    setIsModalOpen(false);
+    setSelectedProject(null);
+    setEditorProject(project);
+    setIsEditorOpen(true);
+  };
+
+  const handleDeleteProject = async (project: Project) => {
+    try {
+      if (!project.trelloCardId && !project.id) return;
+      if (!confirm('Tem certeza que deseja excluir este projeto?')) return;
+      const { deleteProject } = await import('@/lib/api/client-projects');
+
+      await deleteProject(project.trelloCardId || project.id);
+      toast.success('Projeto excluído!');
+      setIsModalOpen(false);
+      setSelectedProject(null);
+      await refreshProjects();
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao excluir');
+    }
+  };
+
+  const handleEditorSaved = async () => {
+    await refreshProjects();
   };
 
   // Show Trello setup guide if credentials are missing
@@ -215,7 +250,7 @@ export default function Home() {
 
         {/* Controls */}
         <motion.div
-          animate={{ opacity: 1 }}
+          animate={{ opacity: 1, y: 0 }}
           className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4"
           initial={{ opacity: 0 }}
           transition={{ delay: 0.6 }}
@@ -223,20 +258,24 @@ export default function Home() {
           <div className="text-sm text-default-600 order-2 sm:order-1">
             {lastUpdated && `Última atualização: ${lastUpdated}`}
           </div>
-          <Button
-            className="order-1 sm:order-2"
-            color="primary"
-            isDisabled={loading}
-            startContent={
-              <FiRefreshCw
-                className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
-              />
-            }
-            variant="ghost"
-            onClick={handleRefresh}
-          >
-            {loading ? 'Atualizando...' : 'Atualizar'}
-          </Button>
+          <div className="flex items-center gap-2 order-1 sm:order-2">
+            <Button color="default" variant="flat" onClick={handleCreateNew}>
+              Novo Projeto
+            </Button>
+            <Button
+              color="primary"
+              isDisabled={loading}
+              startContent={
+                <FiRefreshCw
+                  className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+                />
+              }
+              variant="ghost"
+              onClick={handleRefresh}
+            >
+              {loading ? 'Atualizando...' : 'Atualizar'}
+            </Button>
+          </div>
         </motion.div>
 
         {/* Projects Grouped by Status */}
@@ -296,6 +335,16 @@ export default function Home() {
           isOpen={isModalOpen}
           project={selectedProject}
           onClose={handleCloseModal}
+          onDelete={handleDeleteProject}
+          onEdit={handleEditProject}
+        />
+
+        {/* Project Editor Modal */}
+        <ProjectEditor
+          isOpen={isEditorOpen}
+          project={editorProject}
+          onClose={() => setIsEditorOpen(false)}
+          onSaved={handleEditorSaved}
         />
       </div>
     </ErrorBoundary>

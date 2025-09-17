@@ -131,6 +131,69 @@ export class TrelloAPI {
     return lists;
   }
 
+  /**
+   * Resolve a Trello list ID from an inPatch Project status using flexible name matching.
+   * Caches results for future lookups.
+   */
+  private async getListIdForStatus(
+    status: Project['status']
+  ): Promise<string | null> {
+    const lists = await this.getBoardLists();
+
+    const statusToListCandidates: Record<Project['status'], string[]> = {
+      'a-fazer': [
+        'planning',
+        'backlog',
+        'to-do',
+        'todo',
+        'fazer',
+        'a fazer',
+        'pendente',
+        'novo',
+      ],
+      'em-andamento': [
+        'development',
+        'doing',
+        'in progress',
+        'progress',
+        'andamento',
+        'em andamento',
+        'desenvolvimento',
+        'trabalhando',
+        'ativo',
+      ],
+      concluido: [
+        'done',
+        'completed',
+        'concluido',
+        'concluído',
+        'finalizado',
+        'pronto',
+        'finished',
+      ],
+    };
+
+    const candidates = statusToListCandidates[status].map(s => s.toLowerCase());
+
+    // Try direct and partial matches against available lists
+    for (const list of lists) {
+      const lname = list.name.toLowerCase();
+
+      if (candidates.includes(lname)) return list.id;
+      if (candidates.some(c => lname.includes(c))) return list.id;
+    }
+
+    // Fallbacks: pick first list by conventional ordering if present
+    // Prefer the earliest list for a-fazer, a middle for em-andamento, and a last for concluido
+    const sorted = [...lists].sort((a, b) => a.pos - b.pos);
+
+    if (status === 'a-fazer') return sorted[0]?.id || null;
+    if (status === 'concluido') return sorted[sorted.length - 1]?.id || null;
+
+    // em-andamento: try a middle one
+    return sorted[Math.floor(sorted.length / 2)]?.id || null;
+  }
+
   async getBoardCards(since?: string): Promise<TrelloCard[]> {
     let endpoint =
       `/boards/${this.config.trello.boardId}/cards?` +
@@ -259,6 +322,23 @@ export class TrelloAPI {
       body: JSON.stringify(cardData),
     });
 
+    // If status change requested, move card to corresponding list
+    if (updates.status) {
+      try {
+        const listId = await this.getListIdForStatus(updates.status);
+
+        if (listId) {
+          await this.makeRequest(`/cards/${cardId}/idList`, {
+            method: 'PUT',
+            body: JSON.stringify({ value: listId }),
+          });
+        }
+      } catch (e) {
+        // Non-fatal; keep the rest of the updates
+        console.warn('Failed to move card to new status list:', e);
+      }
+    }
+
     // Ensure list, labels, members and badges are included in the response
     if (
       !updatedCard.list ||
@@ -286,6 +366,22 @@ export class TrelloAPI {
   async deleteCard(cardId: string): Promise<void> {
     await this.makeRequest(`/cards/${cardId}`, {
       method: 'DELETE',
+    });
+  }
+
+  /**
+   * Public helper to move a card to a list that corresponds to a given status
+   */
+  async moveCardToStatus(
+    cardId: string,
+    status: Project['status']
+  ): Promise<void> {
+    const listId = await this.getListIdForStatus(status);
+
+    if (!listId) return;
+    await this.makeRequest(`/cards/${cardId}/idList`, {
+      method: 'PUT',
+      body: JSON.stringify({ value: listId }),
     });
   }
 

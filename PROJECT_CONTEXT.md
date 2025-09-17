@@ -51,7 +51,7 @@
 - **TypeScript ESLint** - Linting específico para TypeScript
 - **Tailwind Variants** - Utilitário para variantes de componentes
  - **Node.js** ^22.19.0 - Ambiente de execução (engines)
- - **Prisma CLI** 6.16.1 - Migrations e geração de client
+ - **Prisma CLI** 6.16.2 - Migrations e geração de client
 
 ---
 
@@ -174,6 +174,76 @@ enum TeamMember { GUILHERME_SOUZA @map("Guilherme Souza") FELIPE_BRAAT @map("Fel
 Camada de acesso e operações:
 - `lib/database/prisma.ts` expõe `DatabaseService` com CRUD, upsert em lote, analytics e integração MCP.
 - Integração real-time e webhooks detalhada nas seções abaixo.
+
+### ✅ Configuração Supabase + Prisma (2025-09-17)
+
+- **Projeto Supabase selecionado**: `helper-enihub`  
+  `project_id`: `skqovtmmuqxatbyueras` • região: `sa-east-1`
+
+- **Ambiente (.env e .env.local)**
+  ```env
+  # Supabase (App Web - público)
+  NEXT_PUBLIC_SUPABASE_URL=https://skqovtmmuqxatbyueras.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=... # copiar do Supabase
+  NEXT_PUBLIC_SUPABASE_PROJECT_ID=skqovtmmuqxatbyueras
+
+  # Prisma / Banco
+  DATABASE_URL="postgresql://postgres:PASSWORD_ENCODED@db.skqovtmmuqxatbyueras.supabase.co:5432/postgres?sslmode=require&schema=public"
+  DIRECT_URL="postgresql://postgres:PASSWORD_ENCODED@db.skqovtmmuqxatbyueras.supabase.co:5432/postgres?sslmode=require&schema=public"
+
+  # Edge Function (config no Supabase)
+  SUPABASE_URL=https://skqovtmmuqxatbyueras.supabase.co
+  SUPABASE_SERVICE_ROLE_KEY=... # nunca expor no client
+  TRELLO_WEBHOOK_SECRET=...
+  ```
+
+  - Para senhas com caracteres especiais, faça URL-encode (PowerShell):
+    ```powershell
+    [uri]::EscapeDataString('SuaSenha@Exemplo')  # -> SuaSenha%40Exemplo
+    ```
+
+- **Baseline de Migrations (prisma/migrations/20250917_init)**
+  - Gerado via: `npx prisma migrate diff --from-empty --to-schema-datamodel ./prisma/schema.prisma --script > prisma/migrations/20250917_init/migration.sql`
+  - Registrado como aplicado: `npx prisma migrate resolve --applied 20250917_init`
+  - SQL aplicado no Supabase (via MCP) e verificado (`public.projects` e `public.sync_history`).
+  - Status atual: `Database schema is up to date!`
+
+- **Introspecção multi-schema (evitar P4002 com auth.users)**
+  ```prisma
+  datasource db {
+    provider  = "postgresql"
+    url       = env("DATABASE_URL")
+    directUrl = env("DIRECT_URL")
+    schemas   = ["public", "auth"]
+  }
+  ```
+
+- **Lint/Build**
+  - Criado `.eslintignore` para ignorar código gerado do Prisma e evitar erros de ESLint no build:
+    ```gitignore
+    lib/generated/**
+    lib/generated/prisma/**
+    .next/**
+    dist/**
+    coverage/**
+    ```
+
+- **Comandos do dia a dia**
+  - Gerar client: `npx prisma generate`
+  - Nova migration (dev): `npx prisma migrate dev --name <sua_mudanca>`
+  - Aplicar em produção: `npx prisma migrate deploy`
+  - Verificar status: `npx prisma migrate status`
+  - Build/Run: `npm run build` • `npm run dev`
+
+- **Troubleshooting**
+  - `P1000 Authentication failed`: conferir senha/URL-encode, host `db.<project>.supabase.co`, `sslmode=require`.
+  - `P4002 cross schema`: adicionar `schemas = ["public", "auth"]` no datasource.
+  - Conflito `.env` vs `prisma/.env`: mantenha apenas `.env` na raiz (remover `prisma/.env`).
+
+- **MCP (Supabase)**
+  - Usado para operações avançadas/administrativas: executar SQL, analytics, filtros, logs.
+  - Foi utilizado para aplicar o baseline diretamente no banco (`mcp2_execute_sql`).
+  - Nunca expor `Service Role Key` no client; use somente no dashboard/edge functions.
 
 ---
 

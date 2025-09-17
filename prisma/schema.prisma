@@ -34,11 +34,12 @@ model Project {
   labels             String[]        @default([])
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
-  
+
   // Relations
   syncHistory        SyncHistory[]
-  
+
   @@map("projects")
+  @@schema("public")
   @@index([status])
   @@index([priority])
   @@index([trelloCardId])
@@ -55,10 +56,11 @@ model SyncHistory {
   details     Json?
   success     Boolean    @default(true)
   errorMessage String?   @map("error_message")
-  
+
   project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
+
   @@map("sync_history")
+  @@schema("public")
   @@index([projectId])
   @@index([timestamp])
   @@index([source])
@@ -73,12 +75,16 @@ enum ProjectStatus {
   A_FAZER      @map("a-fazer")
   EM_ANDAMENTO @map("em-andamento")
   CONCLUIDO    @map("concluido")
+
+  @@schema("public")
 }
 
 enum ProjectPriority {
   LOW    @map("low")
   MEDIUM @map("medium")
   HIGH   @map("high")
+
+  @@schema("public")
 }
 
 enum Platform {
@@ -87,12 +93,16 @@ enum Platform {
   HUBSPOT          @map("Hubspot")
   BACKOFFICE       @map("Backoffice")
   GOOGLE_WORKSPACE @map("Google Workspace")
+
+  @@schema("public")
 }
 
 enum TeamMember {
   GUILHERME_SOUZA @map("Guilherme Souza")
   FELIPE_BRAAT    @map("Felipe Braat")
   TIAGO_TRIANI    @map("Tiago Triani")
+
+  @@schema("public")
 }
 
 enum SyncAction {
@@ -101,4 +111,6 @@ enum SyncAction {
   DELETED
   SYNCED
   ERROR
+
+  @@schema("public")
 }

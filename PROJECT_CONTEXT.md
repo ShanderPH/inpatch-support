@@ -25,10 +25,11 @@
 |------------|--------|---------|
 | **Next.js** | 15.5.0 | Framework React para produção com App Router |
 | **React** | 19.1.0 | Biblioteca de interface de usuário |
-| **TypeScript** | 5.6.3 | Tipagem estática e desenvolvimento seguro |
+| **TypeScript** | 5.9.2 | Tipagem estática e desenvolvimento seguro |
 | **Tailwind CSS** | 4.1.11 | Framework CSS utility-first |
 | **HeroUI** | 2.x | Sistema de componentes moderno (sucessor do NextUI) |
-| **Supabase** | 2.39.0 | Backend-as-a-Service (PostgreSQL) |
+| **Supabase** | 2.40.7 | Backend-as-a-Service (PostgreSQL) |
+| **Prisma ORM** | 6.16.1 | ORM tipado para PostgreSQL (Supabase) |
 | **Zustand** | 4.4.7 | Gerenciamento de estado global |
 | **Framer Motion** | 11.18.2 | Animações e transições |
 
@@ -43,12 +44,14 @@
 
 ### Ferramentas de Desenvolvimento
 
-- **ESLint** 9.25.1 - Linting e qualidade de código com config personalizada
+- **ESLint** 9.35.0 - Linting e qualidade de código com config personalizada
 - **Prettier** 3.5.3 - Formatação automática de código
 - **PostCSS** 8.5.6 - Processamento de CSS avançado
 - **Turbopack** - Bundler de desenvolvimento otimizado (Next.js)
 - **TypeScript ESLint** - Linting específico para TypeScript
 - **Tailwind Variants** - Utilitário para variantes de componentes
+ - **Node.js** ^22.19.0 - Ambiente de execução (engines)
+ - **Prisma CLI** 6.16.1 - Migrations e geração de client
 
 ---
 
@@ -110,51 +113,67 @@ background: linear-gradient(135deg, hsl(60, 2%, 8%) 0%, hsl(93, 19%, 11%) 100%);
 
 ---
 
-## 🗄️ Estrutura de Banco de Dados
+## 🗄️ Banco de Dados (Prisma + Supabase)
 
-### Tabela: `projects`
+O banco é modelado via Prisma ORM e provisionado em um PostgreSQL do Supabase. O schema completo encontra-se em `prisma/schema.prisma`. Resumo dos modelos e enums:
 
-```sql
-CREATE TABLE projects (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
-  platforms TEXT[] DEFAULT '{}',
-  responsible VARCHAR(100) NOT NULL,
-  image_url TEXT,
-  start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  estimated_end_date TIMESTAMP WITH TIME ZONE,
-  status VARCHAR(20) DEFAULT 'planning' 
-    CHECK (status IN ('planning', 'development', 'testing', 'completed', 'on-hold')),
-  priority VARCHAR(10) DEFAULT 'medium' 
-    CHECK (priority IN ('low', 'medium', 'high')),
-  trello_card_id VARCHAR(50) UNIQUE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+```prisma
+// prisma/schema.prisma (resumo)
+model Project {
+  id               String          @id @default(cuid())
+  title            String
+  description      String?
+  progress         Int             @default(0) @db.SmallInt
+  platforms        Platform[]
+  responsible      TeamMember[]
+  imageUrl         String?         @map("image_url")
+  startDate        DateTime        @map("start_date") @default(now())
+  estimatedEndDate DateTime        @map("estimated_end_date")
+  status           ProjectStatus   @default(A_FAZER)
+  priority         ProjectPriority @default(MEDIUM)
+  trelloCardId     String?         @unique @map("trello_card_id")
+  labels           String[]        @default([])
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  syncHistory      SyncHistory[]
+
+  @@map("projects")
+  @@index([status])
+  @@index([priority])
+  @@index([trelloCardId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model SyncHistory {
+  id           String     @id @default(cuid())
+  projectId    String     @map("project_id")
+  action       SyncAction
+  timestamp    DateTime   @default(now())
+  source       String
+  details      Json?
+  success      Boolean    @default(true)
+  errorMessage String?    @map("error_message")
+
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("sync_history")
+  @@index([projectId])
+  @@index([timestamp])
+  @@index([source])
+  @@index([success])
+}
+
+enum ProjectStatus { A_FAZER @map("a-fazer") EM_ANDAMENTO @map("em-andamento") CONCLUIDO @map("concluido") }
+enum ProjectPriority { LOW @map("low") MEDIUM @map("medium") HIGH @map("high") }
+enum Platform { N8N @map("N8N") JIRA @map("Jira") HUBSPOT @map("Hubspot") BACKOFFICE @map("Backoffice") GOOGLE_WORKSPACE @map("Google Workspace") }
+enum TeamMember { GUILHERME_SOUZA @map("Guilherme Souza") FELIPE_BRAAT @map("Felipe Braat") TIAGO_TRIANI @map("Tiago Triani") }
 ```
 
-### Índices de Performance
-
-```sql
-CREATE INDEX idx_projects_status ON projects(status);
-CREATE INDEX idx_projects_responsible ON projects(responsible);
-CREATE INDEX idx_projects_priority ON projects(priority);
-CREATE INDEX idx_projects_trello_card_id ON projects(trello_card_id);
-CREATE INDEX idx_projects_created_at ON projects(created_at);
-```
-
-### Políticas de Segurança (RLS)
-
-```sql
--- Row Level Security habilitado
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-
--- Política permissiva para desenvolvimento
-CREATE POLICY "Allow all operations on projects" ON projects
-  FOR ALL USING (true);
-```
+Camada de acesso e operações:
+- `lib/database/prisma.ts` expõe `DatabaseService` com CRUD, upsert em lote, analytics e integração MCP.
+- Integração real-time e webhooks detalhada nas seções abaixo.
 
 ---
 
@@ -263,6 +282,33 @@ export const STATUS_MAPPING = {
 3. **Manual Refresh** (Sob demanda)
    - User Action → Force Sync → Full Board Fetch → UI Update
 
+### Implementações Avançadas (Fases 3–5)
+
+- **EnhancedTrelloAPI** (`lib/api/trello-enhanced.ts`)
+  - Batch operations (get/update múltiplos cards)
+  - Circuit breaker + retry com exponential backoff e métricas
+  - Webhook management avançado (múltiplos eventos) e cache leve
+
+- **SupabaseMCPService** (`lib/services/supabase-mcp.ts`)
+  - Execução de SQL avançado via MCP, analytics e subscriptions mockáveis
+  - Sanitização de queries e status/health de conexão
+
+- **SyncOrchestrator v2** (`lib/services/sync-orchestrator-v2.ts`)
+  - Orquestra sincronização Trello → Prisma/Supabase → Cache/Store
+  - Subscribers para atualização em tempo real e métricas de sync
+
+- **CacheService** (`lib/cache/cache-service.ts`)
+  - TTL, LRU eviction, estatísticas e invalidação seletiva por webhook
+
+- **RealtimeManager** (`lib/services/realtime-manager.ts`)
+  - Gerencia subscriptions (browser + MCP) e fila de eventos
+
+- **WebhookHandler** (`lib/services/webhook-handler.ts`)
+  - Processa webhooks Trello (transformação + sync + notificação)
+
+- **Edge Function** (`supabase/functions/trello-webhook/index.ts`)
+  - Recebe webhooks do Trello e faz upsert em `projects` no Supabase
+
 ---
 
 ## 🏛️ Arquitetura de Componentes
@@ -270,51 +316,45 @@ export const STATUS_MAPPING = {
 ### Estrutura de Diretórios Atual
 
 ```
-├── app/                    # App Router do Next.js 15
-│   ├── layout.tsx         # Layout raiz com providers e CSP
-│   ├── page.tsx           # Dashboard principal com agrupamento
-│   ├── providers.tsx      # HeroUI + NextThemes providers
-│   ├── about/             # Página sobre
-│   ├── blog/              # Seção blog
-│   ├── docs/              # Documentação
+├── app/                               # App Router do Next.js 15
+│   ├── layout.tsx                     # Layout raiz + CSP meta
+│   ├── page.tsx                       # Dashboard principal (agrupado)
+│   ├── providers.tsx                  # HeroUI + NextThemes providers
 │   └── api/
-│       └── trello-webhook/ # Webhook para sync real-time
-├── components/            
-│   ├── project-card.tsx   # Card com badges de vencimento
-│   ├── project-group.tsx  # Agrupamento por status
-│   ├── navbar.tsx         # Navegação responsiva
-│   ├── theme-switch.tsx   # Toggle dark/light mode
-│   ├── project-filters.tsx # Sistema de filtros avançado
-│   ├── project-detail-modal.tsx # Modal com link Trello
-│   ├── error-boundary.tsx # Error boundaries com fallbacks
-│   ├── real-time-sync-toggle.tsx # Controle de sync
-│   ├── trello-setup-guide.tsx # Guia de configuração
-│   ├── loading-skeleton.tsx # Skeletons animados
-│   ├── primitives.ts      # Utilitários de UI
-│   ├── counter.tsx        # Contador com animação
-│   └── icons.tsx          # Ícones personalizados
+│       └── trello-webhook/route.ts    # Endpoint de webhook (Next.js)
+├── components/
+│   ├── project-card.tsx               # Card com badges e overdue
+│   ├── project-group.tsx              # Agrupamento por status
+│   ├── project-detail-modal.tsx       # Modal com link para Trello
+│   ├── project-filters.tsx            # Filtros avançados
+│   ├── real-time-sync-toggle.tsx      # Controle de sync
+│   ├── error-boundary.tsx             # Error boundaries
+│   └── ...
 ├── lib/
-│   ├── trello.ts          # API Trello com rate limiting
-│   ├── supabase.ts        # Cliente Supabase opcional
-│   ├── store.ts           # Zustand com persistência
+│   ├── api/
+│   │   ├── trello-enhanced.ts         # Trello API avançada (batch, retry, webhooks)
+│   │   └── webhook-handler.ts         # Processamento de eventos do Trello
+│   ├── cache/
+│   │   └── cache-service.ts           # Cache inteligente com TTL/LRU
 │   ├── config/
-│   │   └── api.ts         # Configuração centralizada
-│   ├── utils/
-│   │   └── validation.ts  # Validação e sanitização
-│   └── services/
-│       └── trello-sync.ts # Serviço de sincronização
-├── types/
-│   ├── project.ts         # Tipos de projeto e mappings
-│   └── index.ts           # Tipos gerais
-├── config/
-│   ├── site.ts            # Configurações do site
-│   └── fonts.ts           # Fontes personalizadas
-├── data/
-│   └── mock-projects.ts   # Dados de fallback
+│   │   └── api.ts                     # Configuração centralizada (env + rate limits)
+│   ├── database/
+│   │   └── prisma.ts                  # DatabaseService (Prisma + MCP)
+│   ├── services/
+│   │   ├── sync-orchestrator-v2.ts    # Orquestrador central de sync
+│   │   ├── supabase-mcp.ts            # Integração MCP Supabase
+│   │   ├── mcp-integration.ts         # Detector/Executor MCP (safe)
+│   │   ├── realtime-manager.ts        # Subscriptions e fila de eventos
+│   │   └── webhook-handler.ts         # Processing e notificação
+│   ├── trello.ts                      # API Trello base (rate limit, transforms)
+│   ├── store.ts                       # Zustand + integração com orquestrador
+│   └── utils/                         # Utils (validation, transformers, ...)
+├── prisma/
+│   └── schema.prisma                  # Schema Prisma (Project/SyncHistory + enums)
 ├── supabase/
-│   └── migrations/        # Migrações do banco
+│   └── functions/trello-webhook/      # Edge Function para webhooks Trello
 └── styles/
-    └── globals.css        # Estilos globais + liquid glass
+    └── globals.css                    # Estilos globais + liquid glass
 ```
 
 ### Componentes Principais
@@ -647,14 +687,24 @@ const memberMapping = {
 ### Variáveis de Ambiente Obrigatórias
 
 ```env
-# Trello Configuration (Obrigatório)
-NEXT_PUBLIC_TRELLO_API_KEY=sua_api_key_do_trello_aqui
-NEXT_PUBLIC_TRELLO_API_TOKEN=seu_token_do_trello_aqui
-NEXT_PUBLIC_TRELLO_BOARD_ID=RVFcbKeF
+# Trello (Obrigatório para integração)
+NEXT_PUBLIC_TRELLO_API_KEY=...
+NEXT_PUBLIC_TRELLO_API_TOKEN=...
+NEXT_PUBLIC_TRELLO_BOARD_ID=...
 
-# Supabase Configuration (Opcional)
-NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase_aqui
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase_aqui
+# Supabase (App Web)
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_SUPABASE_PROJECT_ID=...
+
+# Prisma / Banco (local/dev)
+DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
+
+# Edge Function (Ambiente Supabase)
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+TRELLO_WEBHOOK_SECRET=...
 ```
 
 ### Arquitetura de Configuração
@@ -663,6 +713,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase_aqui
 - **Fallback Gracioso**: Funciona apenas com Trello se Supabase não configurado
 - **Configuração Centralizada**: `lib/config/api.ts` centraliza todas as configs
 - **Type Safety**: Validação de tipos para todas as configurações
+ - **Security Headers**: `next.config.js` adiciona headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`)
 
 ### Políticas de Segurança Implementadas
 
@@ -696,15 +747,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase_aqui
    - **Schema Validation**: Validação completa de esquemas
 
 3. **Content Security Policy**
-   ```html
-   <meta httpEquiv="Content-Security-Policy" 
-         content="default-src 'self'; 
-                  script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
-                  style-src 'self' 'unsafe-inline'; 
-                  img-src 'self' data: https:; 
-                  connect-src 'self' https://api.trello.com https://*.supabase.co; 
-                  font-src 'self' data:;" />
-   ```
+```html
+  <meta httpEquiv="Content-Security-Policy" 
+        content="default-src 'self'; 
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
+                 style-src 'self' 'unsafe-inline'; 
+                 img-src 'self' data: https:; 
+                 connect-src 'self' https://api.trello.com https://*.supabase.co; 
+                 font-src 'self' data:;" />
+```
    - **Domínios Permitidos**: Whitelist rigorosa
    - **Resource Control**: Controle de recursos externos
    - **Injection Prevention**: Proteção contra ataques
@@ -801,6 +852,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase_aqui
 4. **Dados não aparecem:** Verificar conexão Supabase
 
 ---
+
+## ✅ Fases de Migração Concluídas (1–5)
+
+- Fase 1: Prisma ORM + schema e `DatabaseService` completos
+- Fase 2: Supabase MCP (analytics, filtros avançados e subscriptions mockáveis)
+- Fase 3: Trello API aprimorada (batch, retry/backoff, circuit breaker, webhooks)
+- Fase 4: Integração MCP real com auto-detecção e fallbacks
+- Fase 5: Orquestrador de Sync v2 + RealtimeManager + CacheService
 
 ## 🔄 Changelog v1.1.0
 

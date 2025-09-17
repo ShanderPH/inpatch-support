@@ -242,27 +242,6 @@ export default function Home() {
           </Button>
         </motion.div>
 
-        {/* Debug Info - Temporary */}
-        {!loading && process.env.NODE_ENV === 'development' && (
-          <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm">
-            <h3 className="font-bold mb-2">Debug Info:</h3>
-            <p>Total Projects: {filteredProjects.length}</p>
-            <p>Em Andamento: {groupedProjects['em-andamento'].length}</p>
-            <p>A Fazer: {groupedProjects['a-fazer'].length}</p>
-            <p>Concluído: {groupedProjects.concluido.length}</p>
-            <p>Loading: {loading.toString()}</p>
-            <p>Error: {error || 'None'}</p>
-            <p>Last Updated: {lastUpdated || 'Never'}</p>
-            {filteredProjects.length > 0 && (
-              <details className="mt-2">
-                <summary>Sample Project</summary>
-                <pre className="mt-2 text-xs overflow-auto">
-                  {JSON.stringify(filteredProjects[0], null, 2)}
-                </pre>
-              </details>
-            )}
-          </div>
-        )}
 
         {/* Projects Grouped by Status */}
         {loading ? (

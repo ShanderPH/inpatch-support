@@ -6,7 +6,8 @@
       "Bash(npm run build:*)",
       "WebFetch(domain:localhost)",
       "Bash(curl:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

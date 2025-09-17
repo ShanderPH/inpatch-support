@@ -6,7 +6,6 @@ import { supabaseMCPService } from '@/lib/services/supabase-mcp';
 import { cacheService } from '@/lib/cache/cache-service';
 import { trelloApi } from '@/lib/trello';
 import { convertPrismaToLegacyProject } from '@/lib/utils/transformers';
-import { testTrelloDirectly } from '@/lib/test-trello-direct';
 
 /**
  * SyncOrchestrator - Orquestrador central de sincronização
@@ -128,12 +127,6 @@ export class SyncOrchestrator {
       toast?.default.loading('Buscando dados do Trello...', {
         id: 'full-sync',
       });
-
-      // Run direct test first
-      console.log('🧪 Running direct Trello test...');
-      const testResult = await testTrelloDirectly();
-
-      console.log('🧪 Test result:', testResult);
 
       const trelloCards = await trelloApi.getBoardCards();
 

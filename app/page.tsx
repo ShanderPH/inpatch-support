@@ -45,16 +45,57 @@ export default function Home() {
   const groupedProjects = getGroupedProjects();
   const stats = getProjectStats();
 
+  // Debug logging
+  console.log('🖥️ Page: Component state:', {
+    loading,
+    error,
+    projectsLength: filteredProjects.length,
+    groupedCounts: {
+      'em-andamento': groupedProjects['em-andamento'].length,
+      'a-fazer': groupedProjects['a-fazer'].length,
+      concluido: groupedProjects.concluido.length,
+    },
+    stats,
+    lastUpdated,
+  });
+
   useEffect(() => {
-    fetchProjects();
+    console.log('🚀 Page: useEffect triggered, calling fetchProjects...');
+    console.log('🚀 Page: fetchProjects function:', typeof fetchProjects);
+    console.log('🚀 Page: Is client side?', typeof window !== 'undefined');
+
+    // Ensure we're on the client side
+    if (typeof window === 'undefined') {
+      console.log('⚠️ Page: Running on server side, skipping fetchProjects');
+
+      return;
+    }
+
+    // Force immediate call using store getter to avoid dependency issues
+    const loadData = async () => {
+      console.log('🚀 Page: Starting data load...');
+      try {
+        // Get fresh fetchProjects from store to avoid stale closure
+        const store = useProjectStore.getState();
+
+        await store.fetchProjects();
+        console.log('🚀 Page: fetchProjects completed');
+      } catch (error) {
+        console.error('❌ Page: fetchProjects failed:', error);
+      }
+    };
+
+    loadData();
 
     // Cleanup real-time sync on unmount
     return () => {
-      if (isRealTimeSyncActive()) {
-        stopRealTimeSync();
+      const store = useProjectStore.getState();
+
+      if (store.isRealTimeSyncActive()) {
+        store.stopRealTimeSync();
       }
     };
-  }, [fetchProjects, isRealTimeSyncActive, stopRealTimeSync]);
+  }, []); // Empty dependency array for mount-only effect
 
   const handleRefresh = async () => {
     await refreshProjects();
@@ -200,6 +241,28 @@ export default function Home() {
             {loading ? 'Atualizando...' : 'Atualizar'}
           </Button>
         </motion.div>
+
+        {/* Debug Info - Temporary */}
+        {!loading && process.env.NODE_ENV === 'development' && (
+          <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm">
+            <h3 className="font-bold mb-2">Debug Info:</h3>
+            <p>Total Projects: {filteredProjects.length}</p>
+            <p>Em Andamento: {groupedProjects['em-andamento'].length}</p>
+            <p>A Fazer: {groupedProjects['a-fazer'].length}</p>
+            <p>Concluído: {groupedProjects.concluido.length}</p>
+            <p>Loading: {loading.toString()}</p>
+            <p>Error: {error || 'None'}</p>
+            <p>Last Updated: {lastUpdated || 'Never'}</p>
+            {filteredProjects.length > 0 && (
+              <details className="mt-2">
+                <summary>Sample Project</summary>
+                <pre className="mt-2 text-xs overflow-auto">
+                  {JSON.stringify(filteredProjects[0], null, 2)}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
 
         {/* Projects Grouped by Status */}
         {loading ? (

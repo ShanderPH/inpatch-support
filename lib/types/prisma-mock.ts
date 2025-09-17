@@ -4,25 +4,27 @@
  */
 
 export class PrismaClient {
-  constructor(options?: { log?: string[] }) {
+  constructor(_options?: { log?: string[] }) {
     // Mock constructor aceita opções mas não faz nada
   }
 
   project = {
-    findMany: async (args?: any): Promise<any[]> => [],
-    findUnique: async (args: any): Promise<any | null> => null,
-    create: async (args: any): Promise<any> => ({}),
-    update: async (args: any): Promise<any> => ({}),
-    upsert: async (args: any): Promise<any> => ({}),
-    delete: async (args: any): Promise<void> => {},
-    count: async (args?: any): Promise<number> => 0,
-    aggregate: async (args: any): Promise<any> => ({}),
+    findMany: async (_args?: any): Promise<any[]> => [],
+    findUnique: async (_args: any): Promise<any | null> => null,
+    create: async (_args: any): Promise<any> => ({}),
+    update: async (_args: any): Promise<any> => ({}),
+    upsert: async (_args: any): Promise<any> => ({}),
+    delete: async (_args: any): Promise<void> => {},
+    count: async (_args?: any): Promise<number> => 0,
+    aggregate: async (_args: any): Promise<any> => ({}),
   };
 
   syncHistory = {
-    findMany: async (args?: any): Promise<any[]> => [],
-    create: async (args: any): Promise<any> => ({}),
-    deleteMany: async (args: any): Promise<{ count: number }> => ({ count: 0 }),
+    findMany: async (_args?: any): Promise<any[]> => [],
+    create: async (_args: any): Promise<any> => ({}),
+    deleteMany: async (_args: any): Promise<{ count: number }> => ({
+      count: 0,
+    }),
   };
 
   async $transaction(fn: (tx: any) => Promise<void>): Promise<void> {

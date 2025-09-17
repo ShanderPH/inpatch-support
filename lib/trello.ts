@@ -1,4 +1,4 @@
-import { Project, Platform, TeamMember, STATUS_MAPPING } from '@/types/project';
+import { Project, Platform, TeamMember } from '@/types/project';
 import {
   getAPIConfig,
   isTrelloConfigured,
@@ -30,6 +30,14 @@ interface TrelloCard {
     checkItems: number;
     checkItemsChecked: number;
   };
+  // Additional fields that might be present in the real API response
+  idList?: string;
+  idBoard?: string;
+  closed?: boolean;
+  pos?: number;
+  shortLink?: string;
+  shortUrl?: string;
+  url?: string;
 }
 
 interface TrelloList {
@@ -43,6 +51,7 @@ export class TrelloAPI {
   private syncInterval: ReturnType<typeof setTimeout> | null = null;
   private rateLimiter = new RateLimiter();
   private config = getAPIConfig();
+  private listsCache: Map<string, string> = new Map(); // idList -> listName cache
 
   private async makeRequest(
     endpoint: string,
@@ -110,7 +119,16 @@ export class TrelloAPI {
   }
 
   async getBoardLists(): Promise<TrelloList[]> {
-    return this.makeRequest(`/boards/${this.config.trello.boardId}/lists`);
+    const lists = await this.makeRequest(
+      `/boards/${this.config.trello.boardId}/lists`
+    );
+
+    // Update cache
+    lists.forEach((list: any) => {
+      this.listsCache.set(list.id, list.name);
+    });
+
+    return lists;
   }
 
   async getBoardCards(since?: string): Promise<TrelloCard[]> {
@@ -120,13 +138,55 @@ export class TrelloAPI {
       'member_fields=fullName,username&' +
       'labels=true&' +
       'list=true&' +
-      'badges=true';
+      'badges=true&' +
+      'lists=open';
 
     if (since) {
       endpoint += `&since=${encodeURIComponent(since)}`;
     }
 
-    return this.makeRequest(endpoint);
+    const cards = await this.makeRequest(endpoint);
+
+    // If cards don't have list information, fetch lists separately and merge
+    if (cards.length > 0 && !cards[0].list && cards[0].idList) {
+      console.log(
+        '⚠️ Cards missing list information, fetching lists separately...'
+      );
+      const lists = await this.getBoardLists();
+      const listMap = new Map(lists.map(list => [list.id, list]));
+
+      // Enhance cards with list information based on idList
+      cards.forEach((card: any) => {
+        if (card.idList && listMap.has(card.idList)) {
+          card.list = listMap.get(card.idList);
+        }
+        // Ensure labels and members are always arrays, and badges is always an object
+        if (!card.labels) {
+          card.labels = [];
+        }
+        if (!card.members) {
+          card.members = [];
+        }
+        if (!card.badges) {
+          card.badges = { checkItems: 0, checkItemsChecked: 0 };
+        }
+      });
+    } else {
+      // Ensure labels and members are always arrays, and badges is always an object even when list info is present
+      cards.forEach((card: any) => {
+        if (!card.labels) {
+          card.labels = [];
+        }
+        if (!card.members) {
+          card.members = [];
+        }
+        if (!card.badges) {
+          card.badges = { checkItems: 0, checkItemsChecked: 0 };
+        }
+      });
+    }
+
+    return cards;
   }
 
   async getCard(cardId: string): Promise<TrelloCard> {
@@ -153,10 +213,23 @@ export class TrelloAPI {
         : null,
     };
 
-    return this.makeRequest('/cards', {
+    const newCard = await this.makeRequest('/cards', {
       method: 'POST',
       body: JSON.stringify(cardData),
     });
+
+    // Ensure list, labels, members and badges are included in the response
+    if (!newCard.list || !newCard.labels || !newCard.members || !newCard.badges) {
+      const fullCard = await this.makeRequest(
+        `/cards/${newCard.id}?list=true&labels=all&members=true&badges=true`
+      );
+      if (!newCard.list) newCard.list = fullCard.list;
+      if (!newCard.labels) newCard.labels = fullCard.labels || [];
+      if (!newCard.members) newCard.members = fullCard.members || [];
+      if (!newCard.badges) newCard.badges = fullCard.badges || { checkItems: 0, checkItemsChecked: 0 };
+    }
+
+    return newCard;
   }
 
   async updateCard(
@@ -171,10 +244,23 @@ export class TrelloAPI {
       cardData.due = new Date(updates.estimatedEndDate).toISOString();
     }
 
-    return this.makeRequest(`/cards/${cardId}`, {
+    const updatedCard = await this.makeRequest(`/cards/${cardId}`, {
       method: 'PUT',
       body: JSON.stringify(cardData),
     });
+
+    // Ensure list, labels, members and badges are included in the response
+    if (!updatedCard.list || !updatedCard.labels || !updatedCard.members || !updatedCard.badges) {
+      const fullCard = await this.makeRequest(
+        `/cards/${cardId}?list=true&labels=all&members=true&badges=true`
+      );
+      if (!updatedCard.list) updatedCard.list = fullCard.list;
+      if (!updatedCard.labels) updatedCard.labels = fullCard.labels || [];
+      if (!updatedCard.members) updatedCard.members = fullCard.members || [];
+      if (!updatedCard.badges) updatedCard.badges = fullCard.badges || { checkItems: 0, checkItemsChecked: 0 };
+    }
+
+    return updatedCard;
   }
 
   async deleteCard(cardId: string): Promise<void> {
@@ -260,38 +346,133 @@ export class TrelloAPI {
     }
   }
 
+  /**
+   * Get list name from ID using cache
+   */
+  private getListNameFromId(idList?: string): string | null {
+    if (!idList) return null;
+
+    return this.listsCache.get(idList) || null;
+  }
+
   // Convert Trello cards to Project format with validation
   transformCardsToProjects(cards: TrelloCard[]): Project[] {
-    return cards
+    console.log('🔄 Starting transformation of', cards.length, 'cards');
+
+    const transformedProjects = cards
       .filter(card => {
-        // Filter out invalid cards
-        if (!card.id || !card.name || card.name.trim() === '') return false;
-        if (card.name.toLowerCase().includes('template')) return false;
-        if (card.name.toLowerCase().includes('exemplo')) return false;
+        // Enhanced validation with detailed logging
+        console.log('🔍 Checking card:', {
+          id: card.id,
+          name: card.name,
+          hasName: !!(card.name && card.name.trim()),
+          listName: card.list?.name,
+          hasListName: !!card.list?.name,
+          closed: card.closed,
+        });
+
+        // Filter out invalid cards with more permissive rules
+        if (!card.id) {
+          console.log('❌ Filtering out card with missing id');
+
+          return false;
+        }
+
+        if (!card.name || card.name.trim() === '') {
+          console.log(
+            '❌ Filtering out card with missing/empty name:',
+            card.id
+          );
+
+          return false;
+        }
+
+        // Only filter out closed cards if the field exists and is true
+        if (card.closed === true) {
+          console.log('❌ Filtering out closed card:', card.name);
+
+          return false;
+        }
+
+        // More lenient template/example filtering
+        const cardNameLower = card.name.toLowerCase();
+
+        if (
+          cardNameLower.includes('template') ||
+          cardNameLower.includes('exemplo')
+        ) {
+          console.log('❌ Filtering out template/example card:', card.name);
+
+          return false;
+        }
+
+        console.log('✅ Card passed filters:', card.name);
 
         return true;
       })
-      .map(card => ({
-        id: card.id,
-        title: sanitizeString(card.name || ''),
-        description: sanitizeString(card.desc || ''),
-        progress: this.calculateProgress(card),
-        platforms: this.extractPlatforms(card),
-        responsible: this.extractResponsible(card),
-        startDate: card.dateLastActivity || new Date().toISOString(),
-        estimatedEndDate:
-          card.due ||
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        status: this.mapListToStatus(card.list?.name),
-        priority: this.extractPriority(card),
-        trelloCardId: card.id,
-        labels: (card.labels || [])
-          .map(label => sanitizeString(label.name || ''))
-          .filter(name => name && name.trim() !== '')
-          .filter((name, index, array) => array.indexOf(name) === index), // Remove duplicates
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
+      .map(card => {
+        // Handle potential missing list data more gracefully
+        const listName =
+          card.list?.name || this.getListNameFromId(card.idList) || 'A Fazer'; // Default list
+
+        console.log(
+          '🔄 Transforming card:',
+          card.name,
+          'List:',
+          listName,
+          'idList:',
+          card.idList
+        );
+
+        const status = this.mapListToStatus(listName);
+        const platforms = this.extractPlatforms(card);
+        const responsible = this.extractResponsible(card);
+        const priority = this.extractPriority(card);
+        const progress = this.calculateProgress(card);
+
+        const project = {
+          id: card.id,
+          title: sanitizeString(card.name || ''),
+          description: sanitizeString(card.desc || ''),
+          progress,
+          platforms,
+          responsible,
+          startDate: card.dateLastActivity || new Date().toISOString(),
+          estimatedEndDate:
+            card.due ||
+            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          status,
+          priority,
+          trelloCardId: card.id,
+          labels: (card.labels || [])
+            .map(label => sanitizeString(label?.name || ''))
+            .filter(name => name && name.trim() !== '')
+            .filter((name, index, array) => array.indexOf(name) === index), // Remove duplicates
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        console.log('✅ Transformed project:', {
+          id: project.id,
+          title: project.title,
+          status: project.status,
+          platforms: project.platforms,
+          responsible: project.responsible,
+          listName,
+          progress,
+          priority,
+        });
+
+        return project;
+      });
+
+    console.log(
+      '✅ Transformation complete:',
+      transformedProjects.length,
+      'projects created'
+    );
+
+    return transformedProjects;
   }
 
   private calculateProgress(card: TrelloCard): number {
@@ -336,64 +517,170 @@ export class TrelloAPI {
     const labels = card.labels || [];
     const platforms: Set<Platform> = new Set();
 
+    console.log(
+      '🏷️ Extracting platforms from',
+      labels.length,
+      'labels:',
+      labels.map(l => l?.name || 'unnamed')
+    );
+
     labels.forEach(label => {
-      const name = (label.name?.toLowerCase() || '').trim();
+      if (!label) return;
+
+      const name = (label.name || '').toLowerCase().trim();
+
+      console.log('🔍 Checking label:', name);
 
       if (!name) return;
 
-      if (name.includes('n8n')) platforms.add('N8N');
-      if (name.includes('jira')) platforms.add('Jira');
-      if (name.includes('hubspot')) platforms.add('Hubspot');
-      if (name.includes('backoffice') || name.includes('back-office'))
+      if (name.includes('n8n')) {
+        platforms.add('N8N');
+        console.log('✅ Added N8N platform');
+      }
+      if (name.includes('jira')) {
+        platforms.add('Jira');
+        console.log('✅ Added Jira platform');
+      }
+      if (name.includes('hubspot')) {
+        platforms.add('Hubspot');
+        console.log('✅ Added Hubspot platform');
+      }
+      if (name.includes('backoffice') || name.includes('back-office')) {
         platforms.add('Backoffice');
-      if (name.includes('google') || name.includes('workspace'))
+        console.log('✅ Added Backoffice platform');
+      }
+      if (name.includes('google') || name.includes('workspace')) {
         platforms.add('Google Workspace');
+        console.log('✅ Added Google Workspace platform');
+      }
     });
 
-    return platforms.size > 0 ? Array.from(platforms) : ['Backoffice'];
+    const result: Platform[] =
+      platforms.size > 0 ? Array.from(platforms) : ['Backoffice'];
+
+    console.log('🏷️ Final platforms:', result);
+
+    return result;
   }
 
   private extractResponsible(card: TrelloCard): TeamMember[] {
     const members = card.members || [];
     const responsibleMembers: TeamMember[] = [];
 
+    console.log(
+      '👥 Extracting responsible from',
+      members.length,
+      'members:',
+      members.map(m => m?.fullName || m?.username || 'unnamed')
+    );
+
     members.forEach(member => {
+      if (!member) return;
+
       const fullName = (member.fullName || member.username || '').toLowerCase();
+
+      console.log('🔍 Checking member:', fullName);
 
       // Map Trello users to team members with more flexible matching
       if (fullName.includes('guilherme') || fullName.includes('gui')) {
         if (!responsibleMembers.includes('Guilherme Souza')) {
           responsibleMembers.push('Guilherme Souza');
+          console.log('✅ Added Guilherme Souza');
         }
       }
       if (fullName.includes('felipe') || fullName.includes('braat')) {
         if (!responsibleMembers.includes('Felipe Braat')) {
           responsibleMembers.push('Felipe Braat');
+          console.log('✅ Added Felipe Braat');
         }
       }
       if (fullName.includes('tiago') || fullName.includes('triani')) {
         if (!responsibleMembers.includes('Tiago Triani')) {
           responsibleMembers.push('Tiago Triani');
+          console.log('✅ Added Tiago Triani');
         }
       }
     });
 
-    return responsibleMembers.length > 0
-      ? responsibleMembers
-      : ['Guilherme Souza']; // Default
+    const result: TeamMember[] =
+      responsibleMembers.length > 0 ? responsibleMembers : ['Guilherme Souza'];
+
+    console.log('👥 Final responsible:', result);
+
+    return result;
   }
 
   private mapListToStatus(listName?: string): Project['status'] {
-    if (!listName) return 'a-fazer';
+    if (!listName) {
+      console.log('⚠️ No list name provided, defaulting to a-fazer');
 
-    const name = listName.toLowerCase();
+      return 'a-fazer';
+    }
 
-    // Use the STATUS_MAPPING for consistency
-    for (const [key, value] of Object.entries(STATUS_MAPPING)) {
+    const name = listName.toLowerCase().trim();
+
+    console.log('🔄 Mapping list name to status:', name);
+
+    // Enhanced mapping with more Portuguese variations
+    const statusMappings: Record<string, Project['status']> = {
+      // A fazer variations
+      planning: 'a-fazer',
+      backlog: 'a-fazer',
+      'to-do': 'a-fazer',
+      todo: 'a-fazer',
+      fazer: 'a-fazer',
+      'a fazer': 'a-fazer',
+      pendente: 'a-fazer',
+      novo: 'a-fazer',
+
+      // Em andamento variations
+      development: 'em-andamento',
+      doing: 'em-andamento',
+      progress: 'em-andamento',
+      andamento: 'em-andamento',
+      'em andamento': 'em-andamento',
+      desenvolvimento: 'em-andamento',
+      trabalhando: 'em-andamento',
+      ativo: 'em-andamento',
+
+      // Concluído variations
+      done: 'concluido',
+      completed: 'concluido',
+      concluido: 'concluido',
+      concluído: 'concluido',
+      finalizado: 'concluido',
+      pronto: 'concluido',
+      finished: 'concluido',
+    };
+
+    // Direct match first
+    if (statusMappings[name]) {
+      console.log('✅ Direct match found:', name, '->', statusMappings[name]);
+
+      return statusMappings[name];
+    }
+
+    // Partial match
+    for (const [key, value] of Object.entries(statusMappings)) {
       if (name.includes(key)) {
+        console.log(
+          '✅ Partial match found:',
+          name,
+          'contains',
+          key,
+          '->',
+          value
+        );
+
         return value;
       }
     }
+
+    console.log(
+      '⚠️ No mapping found for list:',
+      name,
+      ', defaulting to a-fazer'
+    );
 
     return 'a-fazer';
   }
@@ -402,8 +689,10 @@ export class TrelloAPI {
     const labels = card.labels || [];
 
     for (const label of labels) {
-      const name = label.name?.toLowerCase() || '';
-      const color = label.color?.toLowerCase() || '';
+      if (!label) continue;
+
+      const name = (label.name || '').toLowerCase();
+      const color = (label.color || '').toLowerCase();
 
       if (name.includes('high') || name.includes('urgent') || color === 'red')
         return 'high';

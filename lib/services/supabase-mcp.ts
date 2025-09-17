@@ -12,7 +12,7 @@ import type {
   TeamMember,
 } from '@/lib/types/prisma-mock';
 
-// MCP Types - será substituído quando MCP estiver disponível
+// MCP Types para integração real com Supabase
 interface MCPExecuteResult {
   data: any[];
   error?: string;
@@ -24,25 +24,76 @@ interface MCPProjectInfo {
   status: string;
 }
 
-// Mock MCP functions até integração real
-const mockMCP = {
+interface MCPConnection {
+  connected: boolean;
+  projectId: string;
+  lastPing?: string;
+}
+
+import {
+  mcpToolsDetector,
+  safeMCPExecutor,
+  initializeMCP,
+} from './mcp-integration';
+
+// Implementação real do MCP usando a nova integração
+class RealMCPClient {
+  private connection: MCPConnection = {
+    connected: false,
+    projectId: '',
+  };
+
+  async connect(projectId: string): Promise<void> {
+    try {
+      // Inicializa detecção de ferramentas MCP
+      const initResult = await initializeMCP();
+
+      this.connection = {
+        connected: initResult.success && initResult.toolsAvailable > 0,
+        projectId,
+        lastPing: new Date().toISOString(),
+      };
+    } catch {
+      this.connection = {
+        connected: false,
+        projectId,
+      };
+    }
+  }
+
   async execute_sql(params: {
     project_id: string;
     query: string;
   }): Promise<MCPExecuteResult> {
-    return { data: [] };
-  },
+    return await safeMCPExecutor.executeSQL(params);
+  }
 
   async get_project(params: { id: string }): Promise<MCPProjectInfo> {
-    return { id: params.id, name: 'Mock Project', status: 'active' };
-  },
+    return await safeMCPExecutor.getProject(params);
+  }
 
   async get_project_url(params: {
     project_id: string;
   }): Promise<{ url: string }> {
-    return { url: `https://mock-supabase-url.com/${params.project_id}` };
-  },
-};
+    return await safeMCPExecutor.getProjectUrl(params);
+  }
+
+  getConnectionStatus(): MCPConnection {
+    const stats = mcpToolsDetector.getToolsStats();
+
+    return {
+      ...this.connection,
+      connected: this.connection.connected && stats.mcpEnabled,
+    };
+  }
+
+  async disconnect(): Promise<void> {
+    this.connection.connected = false;
+  }
+}
+
+// Instância global do cliente MCP
+const mcpClient = new RealMCPClient();
 
 /**
  * Estatísticas de projetos por período
@@ -86,15 +137,17 @@ export class SupabaseMCPService {
    */
   async initialize(): Promise<void> {
     try {
-      const projectInfo = await mockMCP.get_project({ id: this.projectId });
+      await mcpClient.connect(this.projectId);
+      const projectInfo = await mcpClient.get_project({ id: this.projectId });
 
       if (!projectInfo.id) {
         throw new Error('Projeto Supabase não encontrado');
       }
 
-      this.isConnected = true;
-    } catch (error) {
-      throw new Error('Falha na inicialização do Supabase MCP');
+      this.isConnected = mcpClient.getConnectionStatus().connected;
+    } catch {
+      // Falha na inicialização - modo fallback
+      this.isConnected = false;
     }
   }
 
@@ -107,7 +160,7 @@ export class SupabaseMCPService {
     }
 
     try {
-      const result = await mockMCP.execute_sql({
+      const result = await mcpClient.execute_sql({
         project_id: this.projectId,
         query: this.sanitizeQuery(query),
       });
@@ -117,7 +170,7 @@ export class SupabaseMCPService {
       }
 
       return result.data;
-    } catch (error) {
+    } catch {
       throw new Error('Falha na execução da query avançada');
     }
   }
@@ -319,14 +372,13 @@ export class SupabaseMCPService {
    */
   async getProjectUrl(): Promise<string> {
     try {
-      const result = await mockMCP.get_project_url({
+      const result = await mcpClient.get_project_url({
         project_id: this.projectId,
       });
 
       return result.url;
-    } catch (error) {
-      console.error('Erro ao obter URL do projeto:', error);
-
+    } catch {
+      // Erro ao obter URL do projeto - usando fallback
       return 'https://supabase.com';
     }
   }
@@ -404,11 +456,13 @@ export class SupabaseMCPService {
     connected: boolean;
     projectId: string;
     subscriptions: number;
+    mcpStatus?: MCPConnection;
   } {
     return {
       connected: this.isConnected,
       projectId: this.projectId,
       subscriptions: this.subscriptions.size,
+      mcpStatus: mcpClient.getConnectionStatus(),
     };
   }
 
@@ -424,10 +478,13 @@ export class SupabaseMCPService {
         await this.removeRealtimeSubscription(id);
       }
 
+      // Desconecta cliente MCP
+      await mcpClient.disconnect();
+
       this.isConnected = false;
-      console.log('✅ MCP desconectado com sucesso');
-    } catch (error) {
-      console.error('Erro ao desconectar MCP:', error);
+      // MCP desconectado com sucesso
+    } catch {
+      // Erro ao desconectar MCP - falha silenciosa
     }
   }
 }

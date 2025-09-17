@@ -41,7 +41,8 @@ export function getAPIConfig(): APIConfig {
         'NEXT_PUBLIC_TRELLO_API_TOKEN',
         process.env.NEXT_PUBLIC_TRELLO_API_TOKEN
       ),
-      boardId: process.env.NEXT_PUBLIC_TRELLO_BOARD_ID || 'RVFcbKeF',
+      boardId:
+        process.env.NEXT_PUBLIC_TRELLO_BOARD_ID || '6807e4880c33aea54daabd5c',
       baseUrl: 'https://api.trello.com/1',
     },
     supabase: {

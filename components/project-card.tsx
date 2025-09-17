@@ -48,23 +48,51 @@ const statusColors = {
 };
 
 export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
-  const StatusIcon = statusIcons[project.status];
+  const StatusIcon = statusIcons[project.status] || FiClock;
+
+  // Validate project data
+  if (!project || !project.id) {
+    console.warn('⚠️ ProjectCard: Invalid project data', project);
+
+    return null;
+  }
+
+  // Ensure required fields have fallbacks
+  const safeProject = {
+    ...project,
+    title: project.title || 'Projeto sem título',
+    description: project.description || 'Sem descrição',
+    progress: Math.max(0, Math.min(100, project.progress || 0)),
+    platforms: project.platforms || ['Backoffice'],
+    responsible: project.responsible || ['Guilherme Souza'],
+    labels: project.labels || [],
+    priority: project.priority || 'medium',
+    status: project.status || 'a-fazer',
+  };
+
+  console.log('📋 ProjectCard: Rendering project', {
+    id: safeProject.id,
+    title: safeProject.title,
+    status: safeProject.status,
+    platforms: safeProject.platforms,
+    responsible: safeProject.responsible,
+  });
 
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      aria-label={`Ver detalhes do projeto ${project.title}`}
+      aria-label={`Ver detalhes do projeto ${safeProject.title}`}
       className="group cursor-pointer"
       initial={{ opacity: 0, y: 20 }}
       role="button"
       tabIndex={0}
       transition={{ delay: index * 0.1, duration: 0.5 }}
       whileHover={{ scale: 1.02, y: -4 }}
-      onClick={() => onClick?.(project)}
+      onClick={() => onClick?.(safeProject)}
       onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onClick?.(project);
+          onClick?.(safeProject);
         }
       }}
     >
@@ -74,18 +102,18 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
           <div
             className="absolute top-3 right-3"
-            title={`Prioridade: ${PRIORITY_LABELS[project.priority]}`}
+            title={`Prioridade: ${PRIORITY_LABELS[safeProject.priority]}`}
           >
             <div
-              className={`w-3 h-3 rounded-full ${priorityColors[project.priority]} animate-pulse shadow-lg`}
+              className={`w-3 h-3 rounded-full ${priorityColors[safeProject.priority]} animate-pulse shadow-lg`}
             />
           </div>
           <div className="absolute bottom-3 left-3 flex items-center gap-2 text-white">
             <StatusIcon
-              className={`w-4 h-4 ${statusColors[project.status]} drop-shadow-sm`}
+              className={`w-4 h-4 ${statusColors[safeProject.status]} drop-shadow-sm`}
             />
             <span className="text-sm font-medium drop-shadow-sm">
-              {STATUS_LABELS[project.status]}
+              {STATUS_LABELS[safeProject.status]}
             </span>
           </div>
         </div>
@@ -94,10 +122,10 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
         <div className="space-y-4">
           <div>
             <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary-600 transition-colors">
-              {project.title}
+              {safeProject.title}
             </h3>
             <p className="text-default-600 text-sm leading-relaxed line-clamp-3">
-              {project.description}
+              {safeProject.description}
             </p>
           </div>
 
@@ -108,12 +136,12 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
                 Progresso
               </span>
               <span className="text-sm font-bold text-primary-600">
-                {project.progress}%
+                {safeProject.progress}%
               </span>
             </div>
             <div className="w-full bg-default-200 dark:bg-default-800 rounded-full h-2 overflow-hidden">
               <motion.div
-                animate={{ width: `${project.progress}%` }}
+                animate={{ width: `${safeProject.progress}%` }}
                 className="h-full bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
                 initial={{ width: 0 }}
                 transition={{
@@ -127,7 +155,7 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
 
           {/* Platform Badges */}
           <div className="flex flex-wrap gap-2">
-            {project.platforms.map((platform, platformIndex) => (
+            {safeProject.platforms.map((platform, platformIndex) => (
               <motion.span
                 key={platform}
                 animate={{ opacity: 1, scale: 1 }}
@@ -142,7 +170,7 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
 
           {/* Members */}
           <div className="flex flex-wrap gap-1 mb-3">
-            {project.responsible.map((member, memberIndex) => {
+            {safeProject.responsible.map((member, memberIndex) => {
               // Get initials for avatar
               const initials = member
                 .split(' ')
@@ -181,9 +209,9 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
           </div>
 
           {/* Labels */}
-          {project.labels && project.labels.length > 0 && (
+          {safeProject.labels && safeProject.labels.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-3">
-              {project.labels.slice(0, 3).map((label, labelIndex) => (
+              {safeProject.labels.slice(0, 3).map((label, labelIndex) => (
                 <motion.span
                   key={`${label}-${labelIndex}`}
                   animate={{ opacity: 1, scale: 1 }}
@@ -195,12 +223,12 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
                   {label.length > 12 ? `${label.substring(0, 12)}...` : label}
                 </motion.span>
               ))}
-              {project.labels.length > 3 && (
+              {safeProject.labels.length > 3 && (
                 <span
                   className="px-2 py-1 rounded-md text-xs font-medium bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
-                  title={`+${project.labels.length - 3} mais labels`}
+                  title={`+${safeProject.labels.length - 3} mais labels`}
                 >
-                  +{project.labels.length - 3}
+                  +{safeProject.labels.length - 3}
                 </span>
               )}
             </div>
@@ -211,7 +239,7 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
             <div className="flex items-center gap-2">
               <FiCalendar className="w-4 h-4 text-default-600" />
               {(() => {
-                const dueDate = new Date(project.estimatedEndDate);
+                const dueDate = new Date(safeProject.estimatedEndDate);
                 const today = new Date();
                 const isOverdue = dueDate < today;
 
@@ -244,9 +272,9 @@ export const ProjectCard = ({ project, index, onClick }: ProjectCardProps) => {
             </div>
             <div
               className="text-xs text-default-500"
-              title={`Prioridade: ${PRIORITY_LABELS[project.priority]}`}
+              title={`Prioridade: ${PRIORITY_LABELS[safeProject.priority]}`}
             >
-              {PRIORITY_LABELS[project.priority]}
+              {PRIORITY_LABELS[safeProject.priority]}
             </div>
           </div>
         </div>

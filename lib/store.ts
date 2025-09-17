@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
 import { Project } from '@/types/project';
+import { syncOrchestrator } from '@/lib/services/sync-orchestrator-v2';
 
 interface ProjectStore {
   // State
@@ -116,6 +117,23 @@ export const useProjectStore = create<ProjectStore>()(
         getGroupedProjects: () => {
           const filteredProjects = get().getFilteredProjects();
 
+          console.log(
+            '📋 Store: Grouping',
+            filteredProjects.length,
+            'filtered projects'
+          );
+          console.log(
+            'Projects by status:',
+            filteredProjects.reduce(
+              (acc, p) => {
+                acc[p.status] = (acc[p.status] || 0) + 1;
+
+                return acc;
+              },
+              {} as Record<string, number>
+            )
+          );
+
           // Sort projects by date descending within each group
           const sortByDateDesc = (projects: Project[]) => {
             return projects.sort((a, b) => {
@@ -143,6 +161,12 @@ export const useProjectStore = create<ProjectStore>()(
             ),
           };
 
+          console.log('📋 Store: Grouped projects:', {
+            'em-andamento': grouped['em-andamento'].length,
+            'a-fazer': grouped['a-fazer'].length,
+            concluido: grouped.concluido.length,
+          });
+
           return grouped;
         },
 
@@ -168,33 +192,71 @@ export const useProjectStore = create<ProjectStore>()(
                 )
               : 0;
 
-          return { total, inProgress, completed, avgProgress };
+          const stats = { total, inProgress, completed, avgProgress };
+
+          console.log('📊 Store: Project stats:', stats);
+
+          return stats;
         },
 
         // API actions
         fetchProjects: async () => {
+          console.log('🚀 Store: Starting fetchProjects...');
           set({ loading: true, error: null });
-          try {
-            // Try to sync from Trello first
-            const { trelloSyncService } = await import(
-              '@/lib/services/trello-sync'
-            );
-            const projects = await trelloSyncService.syncFromTrello();
 
+          try {
+            console.log(
+              '🔄 Store: Calling syncOrchestrator.performFullSync()...'
+            );
+
+            // Subscribe to real-time updates first
+            console.log('📡 Store: Subscribing to SyncOrchestrator updates...');
+            syncOrchestrator.subscribe((projects: Project[]) => {
+              console.log(
+                '📡 Store: Received update from SyncOrchestrator:',
+                projects.length,
+                'projects'
+              );
+              set({
+                projects,
+                lastUpdated: new Date().toLocaleString('pt-BR'),
+                error: null,
+                loading: false,
+              });
+            });
+
+            // Use new SyncOrchestrator for enhanced sync
+            const result = await syncOrchestrator.performFullSync();
+
+            console.log('✅ Store: Sync completed successfully!');
+            console.log('Result:', {
+              projectCount: result.projects.length,
+              metrics: result.metrics,
+              sampleProject: result.projects[0],
+            });
+
+            // Set data directly AND through subscription
             set({
-              projects,
+              projects: result.projects,
               loading: false,
               lastUpdated: new Date().toLocaleString('pt-BR'),
               error: null,
             });
+
+            console.log(
+              '💾 Store: State updated with',
+              result.projects.length,
+              'projects'
+            );
           } catch (error) {
-            // If Trello fails, show empty state with error message
+            console.error('❌ Store: Sync failed with error:', error);
+            // If sync fails, show empty state with error message
             set({
               projects: [],
               error:
                 error instanceof Error
                   ? error.message
-                  : 'Erro ao carregar projetos do Trello',
+                  : 'Erro ao carregar projetos',
               loading: false,
             });
           }
@@ -215,9 +277,8 @@ export const useProjectStore = create<ProjectStore>()(
           }),
 
         startRealTimeSync: () => {
-          const { trelloSyncService } = require('@/lib/services/trello-sync');
-
-          trelloSyncService.startRealTimeSync((projects: Project[]) => {
+          // Subscribe to SyncOrchestrator updates
+          syncOrchestrator.subscribe((projects: Project[]) => {
             set({
               projects,
               lastUpdated: new Date().toLocaleString('pt-BR'),
@@ -227,15 +288,15 @@ export const useProjectStore = create<ProjectStore>()(
         },
 
         stopRealTimeSync: () => {
-          const { trelloSyncService } = require('@/lib/services/trello-sync');
-
-          trelloSyncService.stopRealTimeSync();
+          // Real-time sync is managed by SyncOrchestrator subscriptions
+          // Individual unsubscribe would need to be implemented
         },
 
         isRealTimeSyncActive: () => {
-          const { trelloSyncService } = require('@/lib/services/trello-sync');
+          // Check if SyncOrchestrator has active subscriptions
+          const status = syncOrchestrator.getSystemStatus();
 
-          return trelloSyncService.isRealTimeSyncActive();
+          return status.orchestrator.subscribersCount > 0;
         },
       }),
       {

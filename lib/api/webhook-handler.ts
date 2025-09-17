@@ -383,7 +383,7 @@ export class WebhookHandler {
   /**
    * Handle list updates
    */
-  private async handleListUpdated(event: WebhookEvent): Promise<{
+  private async handleListUpdated(_event: WebhookEvent): Promise<{
     projectsUpdated: number;
     cacheInvalidated: boolean;
   }> {
@@ -401,7 +401,7 @@ export class WebhookHandler {
   /**
    * Handle list creation
    */
-  private async handleListCreated(event: WebhookEvent): Promise<{
+  private async handleListCreated(_event: WebhookEvent): Promise<{
     projectsUpdated: number;
     cacheInvalidated: boolean;
   }> {
@@ -476,7 +476,7 @@ export class WebhookHandler {
   /**
    * Notify all subscribers
    */
-  private async notifySubscribers(changes?: string[]): Promise<void> {
+  private async notifySubscribers(_changes?: string[]): Promise<void> {
     if (this.subscribers.size === 0) return;
 
     try {

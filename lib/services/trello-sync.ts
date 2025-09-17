@@ -52,7 +52,7 @@ export class TrelloSyncService {
           `${syncedProjects.length} projetos sincronizados com Supabase!`,
           { id: 'trello-sync' }
         );
-      } catch (supabaseError) {
+      } catch {
         // If Supabase is not available, return Trello data directly
         // Supabase not available, using Trello data directly
         syncedProjects = validProjects;
@@ -172,7 +172,7 @@ export class TrelloSyncService {
       }
 
       // Create new webhook
-      const webhook = await trelloApi.createWebhook(callbackURL);
+      await trelloApi.createWebhook(callbackURL);
 
       // Sync completed successfully
       toast.success('Webhook configurado com sucesso!');

@@ -36,9 +36,6 @@ export default function Home() {
     getFilteredProjects,
     getGroupedProjects,
     getProjectStats,
-    startRealTimeSync: _startRealTimeSync,
-    stopRealTimeSync,
-    isRealTimeSyncActive,
   } = useProjectStore();
 
   const filteredProjects = getFilteredProjects();
@@ -241,7 +238,6 @@ export default function Home() {
             {loading ? 'Atualizando...' : 'Atualizar'}
           </Button>
         </motion.div>
-
 
         {/* Projects Grouped by Status */}
         {loading ? (

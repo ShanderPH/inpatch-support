@@ -26,6 +26,9 @@ export default [
       "**/coverage",
       "**/.next",
       "**/build",
+      "**/lib/generated/**",
+      "**/prisma/generated/**",
+      "**/@prisma/**",
     ],
   },
   {

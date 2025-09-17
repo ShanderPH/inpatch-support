@@ -219,14 +219,24 @@ export class TrelloAPI {
     });
 
     // Ensure list, labels, members and badges are included in the response
-    if (!newCard.list || !newCard.labels || !newCard.members || !newCard.badges) {
+    if (
+      !newCard.list ||
+      !newCard.labels ||
+      !newCard.members ||
+      !newCard.badges
+    ) {
       const fullCard = await this.makeRequest(
         `/cards/${newCard.id}?list=true&labels=all&members=true&badges=true`
       );
+
       if (!newCard.list) newCard.list = fullCard.list;
       if (!newCard.labels) newCard.labels = fullCard.labels || [];
       if (!newCard.members) newCard.members = fullCard.members || [];
-      if (!newCard.badges) newCard.badges = fullCard.badges || { checkItems: 0, checkItemsChecked: 0 };
+      if (!newCard.badges)
+        newCard.badges = fullCard.badges || {
+          checkItems: 0,
+          checkItemsChecked: 0,
+        };
     }
 
     return newCard;
@@ -250,14 +260,24 @@ export class TrelloAPI {
     });
 
     // Ensure list, labels, members and badges are included in the response
-    if (!updatedCard.list || !updatedCard.labels || !updatedCard.members || !updatedCard.badges) {
+    if (
+      !updatedCard.list ||
+      !updatedCard.labels ||
+      !updatedCard.members ||
+      !updatedCard.badges
+    ) {
       const fullCard = await this.makeRequest(
         `/cards/${cardId}?list=true&labels=all&members=true&badges=true`
       );
+
       if (!updatedCard.list) updatedCard.list = fullCard.list;
       if (!updatedCard.labels) updatedCard.labels = fullCard.labels || [];
       if (!updatedCard.members) updatedCard.members = fullCard.members || [];
-      if (!updatedCard.badges) updatedCard.badges = fullCard.badges || { checkItems: 0, checkItemsChecked: 0 };
+      if (!updatedCard.badges)
+        updatedCard.badges = fullCard.badges || {
+          checkItems: 0,
+          checkItemsChecked: 0,
+        };
     }
 
     return updatedCard;

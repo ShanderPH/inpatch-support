@@ -4,13 +4,16 @@
  * Seguindo padrões de Vibe Coding e arquitetura Next.js 15
  */
 
-import type {
-  Project,
-  ProjectStatus,
-  ProjectPriority,
-  Platform,
-  TeamMember,
-} from '@/lib/types/prisma-mock';
+// Local enum types aligned with Prisma schema (avoid circular deps and $Enums differences)
+export type ProjectStatus = 'A_FAZER' | 'EM_ANDAMENTO' | 'CONCLUIDO';
+export type ProjectPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type Platform =
+  | 'N8N'
+  | 'JIRA'
+  | 'HUBSPOT'
+  | 'BACKOFFICE'
+  | 'GOOGLE_WORKSPACE';
+export type TeamMember = 'GUILHERME_SOUZA' | 'FELIPE_BRAAT' | 'TIAGO_TRIANI';
 
 // MCP Types para integração real com Supabase
 interface MCPExecuteResult {
@@ -261,7 +264,7 @@ export class SupabaseMCPService {
 
         weeklyTrends: data.weekly_trends || [],
       };
-    } catch (error) {
+    } catch {
       // Retorna analytics vazios em caso de erro
       return {
         totalProjects: 0,
@@ -293,7 +296,7 @@ export class SupabaseMCPService {
     responsible?: TeamMember[];
     dateRange?: { start: string; end: string };
     searchTerm?: string;
-  }): Promise<Project[]> {
+  }): Promise<any[]> {
     const conditions: string[] = ['1=1']; // Base condition
 
     if (filters.status?.length) {
@@ -349,7 +352,7 @@ export class SupabaseMCPService {
       });
 
       return subscriptionId;
-    } catch (error) {
+    } catch {
       throw new Error('Falha na configuração de real-time subscription');
     }
   }
@@ -362,7 +365,7 @@ export class SupabaseMCPService {
       if (this.subscriptions.has(subscriptionId)) {
         this.subscriptions.delete(subscriptionId);
       }
-    } catch (error) {
+    } catch {
       // Erro ao remover subscription - falha silenciosa
     }
   }
@@ -406,14 +409,14 @@ export class SupabaseMCPService {
         FROM sync_history;
       `;
 
-      const result = await this.executeAdvancedQuery(backupQuery);
+      await this.executeAdvancedQuery(backupQuery);
       const backupId = `backup_${Date.now()}`;
 
       return { success: true, backupId };
-    } catch (error) {
+    } catch {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: 'Erro desconhecido no backup',
       };
     }
   }

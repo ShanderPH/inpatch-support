@@ -64,7 +64,7 @@ export class RealtimeManager {
       await this.setupMCPSubscriptions();
 
       this.isInitialized = true;
-    } catch (error) {
+    } catch {
       // RealtimeManager inicializado em modo fallback
       this.isInitialized = true;
     }
@@ -108,11 +108,11 @@ export class RealtimeManager {
 
     try {
       // Notifica todas as subscriptions ativas
-      Array.from(this.subscriptions.entries()).forEach(([id, config]) => {
+      Array.from(this.subscriptions.entries()).forEach(([_id, config]) => {
         if (config.enabled && config.eventTypes.includes(event.type)) {
           try {
             config.callback(event);
-          } catch (error) {
+          } catch {
             // Erro na subscription - falha silenciosa
           }
         }
@@ -210,7 +210,7 @@ export class RealtimeManager {
       });
 
       // MCP subscriptions configuradas
-    } catch (error) {
+    } catch {
       // Erro ao configurar MCP subscriptions - falha silenciosa
     }
   }
@@ -248,7 +248,7 @@ export class RealtimeManager {
       await this.setupMCPSubscriptions();
 
       // Subscriptions reativadas
-    } catch (error) {
+    } catch {
       // Erro ao reativar subscriptions - falha silenciosa
     }
   }
@@ -275,8 +275,8 @@ export class RealtimeManager {
           source: 'webhook',
         });
       }
-    } catch (error) {
-      console.error('Erro ao processar webhook real-time:', error);
+    } catch {
+      console.error('Erro ao processar webhook real-time:');
     }
   }
 
@@ -304,8 +304,8 @@ export class RealtimeManager {
       });
 
       console.log('✅ Sincronização forçada concluída');
-    } catch (error) {
-      console.error('Erro na sincronização forçada:', error);
+    } catch {
+      console.error('Erro na sincronização forçada:');
     }
   }
 
@@ -354,8 +354,8 @@ export class RealtimeManager {
 
       this.isInitialized = false;
       console.log('✅ RealtimeManager desconectado');
-    } catch (error) {
-      console.error('Erro ao desconectar RealtimeManager:', error);
+    } catch {
+      console.error('Erro ao desconectar RealtimeManager:');
     }
   }
 }

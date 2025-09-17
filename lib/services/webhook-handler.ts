@@ -262,7 +262,7 @@ export class WebhookHandler {
       };
 
       return trelloProject;
-    } catch (error) {
+    } catch {
       return null;
     }
   }

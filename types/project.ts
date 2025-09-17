@@ -2,7 +2,7 @@
 import type {
   Project as PrismaProject,
   SyncHistory,
-} from '@/lib/types/prisma-mock';
+} from '@/lib/database/prisma';
 
 // Legacy types for backward compatibility
 export type Platform =

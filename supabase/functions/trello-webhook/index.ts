@@ -356,7 +356,7 @@ serve(async (req: Request) => {
         },
       }
     );
-  } catch (error) {
+  } catch {
     return new Response(
       JSON.stringify({
         success: false,

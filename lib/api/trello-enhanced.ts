@@ -531,7 +531,7 @@ export class EnhancedTrelloAPI extends TrelloAPI {
         circuitBreaker: this.getCircuitBreakerStatus(),
         lastCheck: new Date().toISOString(),
       };
-    } catch (error) {
+    } catch {
       return {
         status: 'unhealthy',
         metrics: this.getMetrics(),

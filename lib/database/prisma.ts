@@ -1,19 +1,21 @@
-// Usando tipos mock temporários até o Prisma Client ser gerado
-import type { Project, SyncHistory } from '@/lib/types/prisma-mock';
+import type { Project, SyncHistory } from '@/lib/generated/prisma';
 import type { Project as TrelloProject } from '@/types/project';
 
-import {
-  PrismaClient,
-  ProjectStatus,
-  ProjectPriority,
-  Platform,
-  TeamMember,
-  SyncAction,
-} from '@/lib/types/prisma-mock';
+import { PrismaClient, $Enums } from '@/lib/generated/prisma';
 import {
   supabaseMCPService,
   type ProjectAnalytics,
 } from '@/lib/services/supabase-mcp';
+
+// Re-exportar enums e tipos do Prisma gerado
+export { $Enums } from '@/lib/generated/prisma';
+
+// Tipos para TypeScript
+export type ProjectStatus = $Enums.ProjectStatus;
+export type ProjectPriority = $Enums.ProjectPriority;
+export type Platform = $Enums.Platform;
+export type TeamMember = $Enums.TeamMember;
+export type SyncAction = $Enums.SyncAction;
 
 // Extend Prisma types for better type safety
 export type ProjectWithHistory = Project & {
@@ -42,7 +44,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
  * Integrado com Supabase MCP para operações avançadas
  */
 export class DatabaseService {
-  private prisma: PrismaClient;
+  private prisma: any;
   private mcpService = supabaseMCPService;
   private isInitialized = false;
 
@@ -59,7 +61,7 @@ export class DatabaseService {
     try {
       await this.mcpService.initialize();
       this.isInitialized = true;
-    } catch (error) {
+    } catch {
       // MCP não disponível, usando modo fallback silentemente
       this.isInitialized = true; // Continue sem MCP
     }
@@ -72,7 +74,7 @@ export class DatabaseService {
     await this.initialize();
 
     try {
-      return await this.prisma.project.findMany({
+      return (await this.prisma.project.findMany({
         include: {
           syncHistory: {
             orderBy: { timestamp: 'desc' },
@@ -80,8 +82,8 @@ export class DatabaseService {
           },
         },
         orderBy: { updatedAt: 'desc' },
-      });
-    } catch (error) {
+      })) as unknown as ProjectWithHistory[];
+    } catch {
       throw new Error('Falha ao carregar projetos do banco de dados');
     }
   }
@@ -101,7 +103,11 @@ export class DatabaseService {
 
     try {
       if (this.mcpService.getConnectionStatus().connected) {
-        return await this.mcpService.getProjectsWithAdvancedFilters(filters);
+        const rows = await this.mcpService.getProjectsWithAdvancedFilters(
+          filters as any
+        );
+
+        return rows as unknown as Project[];
       }
 
       // Fallback para Prisma nativo
@@ -124,12 +130,12 @@ export class DatabaseService {
         ];
       }
 
-      return await this.prisma.project.findMany({
+      return (await this.prisma.project.findMany({
         where,
         orderBy: { updatedAt: 'desc' },
         take: 100,
-      });
-    } catch (error) {
+      })) as unknown as Project[];
+    } catch {
       throw new Error('Falha ao buscar projetos filtrados');
     }
   }
@@ -139,15 +145,15 @@ export class DatabaseService {
    */
   async getProjectById(id: string): Promise<ProjectWithHistory | null> {
     try {
-      return await this.prisma.project.findUnique({
+      return (await this.prisma.project.findUnique({
         where: { id },
         include: {
           syncHistory: {
             orderBy: { timestamp: 'desc' },
           },
         },
-      });
-    } catch (error) {
+      })) as unknown as ProjectWithHistory | null;
+    } catch {
       return null;
     }
   }
@@ -157,10 +163,10 @@ export class DatabaseService {
    */
   async getProjectByTrelloId(trelloCardId: string): Promise<Project | null> {
     try {
-      return await this.prisma.project.findUnique({
+      return (await this.prisma.project.findUnique({
         where: { trelloCardId },
-      });
-    } catch (error) {
+      })) as unknown as Project | null;
+    } catch {
       return null;
     }
   }
@@ -173,20 +179,20 @@ export class DatabaseService {
     source: string = 'manual'
   ): Promise<Project> {
     try {
-      return await this.prisma.project.create({
+      return (await this.prisma.project.create({
         data: {
           ...data,
           syncHistory: {
             create: {
-              action: 'CREATED',
+              action: $Enums.SyncAction.CREATED,
               source,
               success: true,
               details: { message: 'Projeto criado com sucesso' },
             },
           },
         },
-      });
-    } catch (error) {
+      })) as unknown as Project;
+    } catch {
       throw new Error('Falha ao criar projeto no banco de dados');
     }
   }
@@ -200,21 +206,21 @@ export class DatabaseService {
     source: string = 'manual'
   ): Promise<Project> {
     try {
-      return await this.prisma.project.update({
+      return (await this.prisma.project.update({
         where: { id },
         data: {
           ...data,
           syncHistory: {
             create: {
-              action: 'UPDATED',
+              action: $Enums.SyncAction.UPDATED,
               source,
               success: true,
               details: { changes: Object.keys(data) },
             },
           },
         },
-      });
-    } catch (error) {
+      })) as unknown as Project;
+    } catch {
       throw new Error('Falha ao atualizar projeto no banco de dados');
     }
   }
@@ -233,13 +239,13 @@ export class DatabaseService {
         throw new Error('trelloCardId é obrigatório para upsert');
       }
 
-      return await this.prisma.project.upsert({
+      return (await this.prisma.project.upsert({
         where: { trelloCardId },
         update: {
           ...projectData,
           syncHistory: {
             create: {
-              action: 'UPDATED',
+              action: $Enums.SyncAction.UPDATED,
               source,
               success: true,
               details: { trelloCardId },
@@ -250,15 +256,15 @@ export class DatabaseService {
           ...data,
           syncHistory: {
             create: {
-              action: 'CREATED',
+              action: $Enums.SyncAction.CREATED,
               source,
               success: true,
               details: { trelloCardId },
             },
           },
         },
-      });
-    } catch (error) {
+      })) as unknown as Project;
+    } catch {
       throw new Error('Falha ao sincronizar projeto com banco de dados');
     }
   }
@@ -268,7 +274,7 @@ export class DatabaseService {
    */
   async syncFromTrello(trelloProjects: CreateProjectData[]): Promise<void> {
     try {
-      await this.prisma.$transaction(async tx => {
+      await this.prisma.$transaction(async (tx: any) => {
         for (const project of trelloProjects) {
           if (!project.trelloCardId) continue;
 
@@ -278,7 +284,7 @@ export class DatabaseService {
               ...project,
               syncHistory: {
                 create: {
-                  action: 'SYNCED',
+                  action: $Enums.SyncAction.SYNCED,
                   source: 'trello',
                   success: true,
                   details: { batchSync: true },
@@ -289,7 +295,7 @@ export class DatabaseService {
               ...project,
               syncHistory: {
                 create: {
-                  action: 'CREATED',
+                  action: $Enums.SyncAction.CREATED,
                   source: 'trello',
                   success: true,
                   details: { batchSync: true },
@@ -299,7 +305,7 @@ export class DatabaseService {
           });
         }
       });
-    } catch (error) {
+    } catch {
       throw new Error('Falha na sincronização em lote com Trello');
     }
   }
@@ -312,7 +318,7 @@ export class DatabaseService {
       await this.prisma.project.delete({
         where: { id },
       });
-    } catch (error) {
+    } catch {
       throw new Error('Falha ao deletar projeto do banco de dados');
     }
   }
@@ -339,7 +345,7 @@ export class DatabaseService {
         completed,
         avgProgress: Math.round(avgProgress._avg.progress || 0),
       };
-    } catch (error) {
+    } catch {
       return { total: 0, inProgress: 0, completed: 0, avgProgress: 0 };
     }
   }
@@ -358,7 +364,7 @@ export class DatabaseService {
       }
 
       return null;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -377,7 +383,7 @@ export class DatabaseService {
         orderBy: { timestamp: 'desc' },
         take: limit,
       });
-    } catch (error) {
+    } catch {
       return [];
     }
   }
@@ -403,7 +409,7 @@ export class DatabaseService {
           details,
         },
       });
-    } catch (error) {
+    } catch {
       // Erro ao registrar erro de sincronização - falha silenciosa
     }
   }
@@ -426,7 +432,7 @@ export class DatabaseService {
       });
 
       return result.count;
-    } catch (error) {
+    } catch {
       return 0;
     }
   }
@@ -446,25 +452,25 @@ export class DatabaseService {
 
       // Mapeamento de status
       const statusMapping: Record<string, ProjectStatus> = {
-        'a-fazer': ProjectStatus.A_FAZER,
-        'em-andamento': ProjectStatus.EM_ANDAMENTO,
-        concluido: ProjectStatus.CONCLUIDO,
+        'a-fazer': $Enums.ProjectStatus.A_FAZER,
+        'em-andamento': $Enums.ProjectStatus.EM_ANDAMENTO,
+        concluido: $Enums.ProjectStatus.CONCLUIDO,
       };
 
       // Mapeamento de plataformas
       const platformMapping: Record<string, Platform> = {
-        N8N: Platform.N8N,
-        Jira: Platform.JIRA,
-        Hubspot: Platform.HUBSPOT,
-        Backoffice: Platform.BACKOFFICE,
-        'Google Workspace': Platform.GOOGLE_WORKSPACE,
+        N8N: $Enums.Platform.N8N,
+        Jira: $Enums.Platform.JIRA,
+        Hubspot: $Enums.Platform.HUBSPOT,
+        Backoffice: $Enums.Platform.BACKOFFICE,
+        'Google Workspace': $Enums.Platform.GOOGLE_WORKSPACE,
       };
 
       // Mapeamento de membros
       const memberMapping: Record<string, TeamMember> = {
-        'Guilherme Souza': TeamMember.GUILHERME_SOUZA,
-        'Felipe Braat': TeamMember.FELIPE_BRAAT,
-        'Tiago Triani': TeamMember.TIAGO_TRIANI,
+        'Guilherme Souza': $Enums.TeamMember.GUILHERME_SOUZA,
+        'Felipe Braat': $Enums.TeamMember.FELIPE_BRAAT,
+        'Tiago Triani': $Enums.TeamMember.TIAGO_TRIANI,
       };
 
       // Transformação de dados
@@ -480,16 +486,20 @@ export class DatabaseService {
         title,
         description,
         progress: Math.max(0, Math.min(100, trelloProject.progress)),
-        platforms: platforms.length > 0 ? platforms : [Platform.BACKOFFICE],
+        platforms:
+          platforms.length > 0 ? platforms : [$Enums.Platform.BACKOFFICE],
         responsible:
-          responsible.length > 0 ? responsible : [TeamMember.GUILHERME_SOUZA],
+          responsible.length > 0
+            ? responsible
+            : [$Enums.TeamMember.GUILHERME_SOUZA],
         imageUrl: trelloProject.imageUrl || null,
         startDate: new Date(trelloProject.startDate),
         estimatedEndDate: new Date(trelloProject.estimatedEndDate),
-        status: statusMapping[trelloProject.status] || ProjectStatus.A_FAZER,
+        status:
+          statusMapping[trelloProject.status] || $Enums.ProjectStatus.A_FAZER,
         priority:
           (trelloProject.priority?.toUpperCase() as ProjectPriority) ||
-          ProjectPriority.MEDIUM,
+          $Enums.ProjectPriority.MEDIUM,
         trelloCardId: trelloProject.trelloCardId || null,
         labels: trelloProject.labels || [],
       };
@@ -518,7 +528,7 @@ export class DatabaseService {
     };
 
     try {
-      await this.prisma.$transaction(async tx => {
+      await this.prisma.$transaction(async (tx: any) => {
         for (const trelloProject of trelloProjects) {
           try {
             const transformedProject =
@@ -534,7 +544,7 @@ export class DatabaseService {
                 ...transformedProject,
                 syncHistory: {
                   create: {
-                    action: 'SYNCED',
+                    action: $Enums.SyncAction.SYNCED,
                     source: 'trello-mcp',
                     success: true,
                     details: {
@@ -549,7 +559,7 @@ export class DatabaseService {
                 ...transformedProject,
                 syncHistory: {
                   create: {
-                    action: 'CREATED',
+                    action: $Enums.SyncAction.CREATED,
                     source: 'trello-mcp',
                     success: true,
                     details: {
@@ -575,7 +585,7 @@ export class DatabaseService {
             // Log do erro no histórico
             await this.logSyncError(
               null,
-              SyncAction.ERROR,
+              $Enums.SyncAction.ERROR,
               'trello-mcp',
               errorMsg,
               { trelloCardId: trelloProject.trelloCardId }
@@ -634,12 +644,4 @@ export class DatabaseService {
 export const databaseService = new DatabaseService();
 
 // Export dos tipos para uso em outros arquivos
-export type {
-  Project,
-  SyncHistory,
-  ProjectStatus,
-  ProjectPriority,
-  Platform,
-  TeamMember,
-  SyncAction,
-};
+export type { Project, SyncHistory };

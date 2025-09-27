@@ -183,6 +183,11 @@ export class TicketDatabaseService {
    * Buscar tickets do banco local com filtros
    */
   async getLocalTickets(filters?: TicketFilters): Promise<Ticket[]> {
+    // Verificar se o banco está configurado
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL não configurado');
+    }
+
     const where: any = {};
 
     // Aplicar filtros

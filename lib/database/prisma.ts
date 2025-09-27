@@ -2,6 +2,7 @@ import type { Project, SyncHistory } from '@prisma/client';
 import type { Project as TrelloProject } from '@/types/project';
 
 import { PrismaClient, $Enums } from '@prisma/client';
+
 import {
   supabaseMCPService,
   type ProjectAnalytics,

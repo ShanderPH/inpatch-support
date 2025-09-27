@@ -160,6 +160,12 @@ export function TicketCard({
     console.log('Visualizar detalhes do ticket:', ticket.id);
   };
 
+  // Handler para mais ações
+  const handleMoreActions = () => {
+    // TODO: Implementar menu de ações
+    console.log('Mais ações para ticket:', ticket.id);
+  };
+
   return (
     <motion.div
       animate="animate"
@@ -168,12 +174,8 @@ export function TicketCard({
       variants={cardVariants}
       whileHover="hover"
       whileTap="tap"
-      onClick={handleCardClick}
-      onHoverEnd={() => setIsHovered(false)}
-      onHoverStart={() => setIsHovered(true)}
     >
       <Card
-        isPressable
         className={`
           relative transition-all duration-300 cursor-pointer backdrop-blur-sm
           ${urgencyStyles[urgencyLevel]}
@@ -181,6 +183,9 @@ export function TicketCard({
           border-l-4 border-l-transparent hover:border-l-primary-400
           rounded-2xl overflow-hidden
         `}
+        onClick={handleCardClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         {/* Indicador de Urgência Moderno */}
         <div
@@ -236,6 +241,7 @@ export function TicketCard({
               radius="full"
               size="sm"
               variant="flat"
+              onPress={handleMoreActions}
             >
               <FiMoreVertical className="text-sm" />
             </Button>

@@ -1,94 +1,108 @@
-// Prisma Schema Simplificado para Tickets HubSpot
+// Prisma Schema para inPatch Suporte
 // Integração com Supabase PostgreSQL
+// Seguindo padrões de Vibe Coding e arquitetura Next.js 15
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public", "auth"]
 }
 
 // ============================================================================
-// MODELO DE TICKETS HUBSPOT
+// MODELOS PRINCIPAIS
 // ============================================================================
 
-model Ticket {
-  id                   String         @id @default(cuid())
-  hubspotId           String         @unique @map("hubspot_id")
-  subject             String
-  content             String?
-  priority            TicketPriority @default(MEDIUM)
-  status              TicketStatus   @default(NEW)
-  category            String?
-  pipelineId          String         @map("pipeline_id")
-  pipelineStageId     String         @map("pipeline_stage_id")
-  hubspotOwnerId      String?        @map("hubspot_owner_id")
-  sourceType          String?        @map("source_type")
-  tags                String[]       @default([])
-
-  // Timestamps
-  createdAt           DateTime       @default(now()) @map("created_at")
-  updatedAt           DateTime       @updatedAt @map("updated_at")
-  closedAt            DateTime?      @map("closed_at")
-
-  // HubSpot specific fields
-  hubspotCreatedAt    DateTime?      @map("hubspot_created_at")
-  hubspotUpdatedAt    DateTime?      @map("hubspot_updated_at")
+model Project {
+  id               String          @id @default(cuid())
+  title            String
+  description      String?
+  progress         Int             @default(0) @db.SmallInt
+  platforms        Platform[]
+  responsible      TeamMember[]
+  imageUrl         String?         @map("image_url")
+  startDate        DateTime        @default(now()) @map("start_date")
+  estimatedEndDate DateTime        @map("estimated_end_date")
+  status           ProjectStatus   @default(A_FAZER)
+  priority         ProjectPriority @default(MEDIUM)
+  trelloCardId     String?         @unique @map("trello_card_id")
+  labels           String[]        @default([])
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
 
   // Relations
-  syncHistory         SyncHistory[]
+  syncHistory SyncHistory[]
 
-  @@map("tickets")
-  @@index([hubspotId])
   @@index([status])
   @@index([priority])
-  @@index([pipelineId])
-  @@index([pipelineStageId])
-  @@index([hubspotOwnerId])
+  @@index([trelloCardId])
   @@index([createdAt])
   @@index([updatedAt])
+  @@map("projects")
+  @@schema("public")
 }
 
 model SyncHistory {
-  id          String     @id @default(cuid())
-  ticketId    String?    @map("ticket_id")
-  action      SyncAction
-  timestamp   DateTime   @default(now())
-  source      String     // "hubspot" | "api"
-  details     Json?
-  success     Boolean    @default(true)
-  errorMessage String?   @map("error_message")
+  id           String     @id @default(cuid())
+  projectId    String     @map("project_id")
+  action       SyncAction
+  timestamp    DateTime   @default(now())
+  source       String // "trello" | "manual" | "webhook" | "api"
+  details      Json?
+  success      Boolean    @default(true)
+  errorMessage String?    @map("error_message")
 
-  ticket      Ticket?    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@map("sync_history")
-  @@index([ticketId])
+  @@index([projectId])
   @@index([timestamp])
   @@index([source])
   @@index([success])
+  @@map("sync_history")
+  @@schema("public")
 }
 
 // ============================================================================
 // ENUMS
 // ============================================================================
 
-enum TicketPriority {
+enum ProjectStatus {
+  A_FAZER      @map("a-fazer")
+  EM_ANDAMENTO @map("em-andamento")
+  CONCLUIDO    @map("concluido")
+
+  @@schema("public")
+}
+
+enum ProjectPriority {
   LOW    @map("low")
   MEDIUM @map("medium")
   HIGH   @map("high")
-  URGENT @map("urgent")
 
+  @@schema("public")
 }
 
-enum TicketStatus {
-  NEW        @map("new")
-  OPEN       @map("open")
-  WAITING    @map("waiting")
-  CLOSED     @map("closed")
-  RESOLVED   @map("resolved")
+enum Platform {
+  N8N              @map("N8N")
+  JIRA             @map("Jira")
+  HUBSPOT          @map("Hubspot")
+  BACKOFFICE       @map("Backoffice")
+  GOOGLE_WORKSPACE @map("Google Workspace")
 
+  @@schema("public")
+}
+
+enum TeamMember {
+  GUILHERME_SOUZA @map("Guilherme Souza")
+  FELIPE_BRAAT    @map("Felipe Braat")
+  TIAGO_TRIANI    @map("Tiago Triani")
+
+  @@schema("public")
 }
 
 enum SyncAction {
@@ -98,4 +112,5 @@ enum SyncAction {
   SYNCED
   ERROR
 
+  @@schema("public")
 }

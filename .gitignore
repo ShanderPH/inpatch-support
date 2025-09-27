@@ -25,7 +25,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env*.local
+.env*
 
 # vercel
 .vercel
@@ -39,3 +39,9 @@ yarn.lock
 package-lock.json
 bun.lockb
 /lib/generated/prisma
+
+# HubSpot config file
+hubspot.config.yml
+/inpatch-helpdesk
+archived.hubspot.config.yml
+

@@ -1,0 +1,68 @@
+// Prisma Schema Simplificado para Tickets HubSpot
+// Integração com Supabase PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// MODELO DE TICKETS HUBSPOT
+// ============================================================================
+
+model Ticket {
+  id                   String         @id @default(cuid())
+  hubspotId           String         @unique @map("hubspot_id")
+  subject             String
+  content             String?
+  priority            TicketPriority @default(MEDIUM)
+  status              TicketStatus   @default(NEW)
+  category            String?
+  pipelineId          String         @map("pipeline_id")
+  pipelineStageId     String         @map("pipeline_stage_id")
+  hubspotOwnerId      String?        @map("hubspot_owner_id")
+  sourceType          String?        @map("source_type")
+  tags                String[]       @default([])
+  
+  // Timestamps
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+  closedAt            DateTime?      @map("closed_at")
+  
+  // HubSpot specific fields
+  hubspotCreatedAt    DateTime?      @map("hubspot_created_at")
+  hubspotUpdatedAt    DateTime?      @map("hubspot_updated_at")
+
+  @@map("tickets")
+  @@index([hubspotId])
+  @@index([status])
+  @@index([priority])
+  @@index([pipelineId])
+  @@index([pipelineStageId])
+  @@index([hubspotOwnerId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum TicketPriority {
+  LOW    @map("low")
+  MEDIUM @map("medium")
+  HIGH   @map("high")
+  URGENT @map("urgent")
+}
+
+enum TicketStatus {
+  NEW        @map("new")
+  OPEN       @map("open")
+  WAITING    @map("waiting")
+  CLOSED     @map("closed")
+  RESOLVED   @map("resolved")
+}

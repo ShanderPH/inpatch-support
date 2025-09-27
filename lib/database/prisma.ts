@@ -1,14 +1,14 @@
-import type { Project, SyncHistory } from '@/lib/generated/prisma';
+import type { Project, SyncHistory } from '@prisma/client';
 import type { Project as TrelloProject } from '@/types/project';
 
-import { PrismaClient, $Enums } from '@/lib/generated/prisma';
+import { PrismaClient, $Enums } from '@prisma/client';
 import {
   supabaseMCPService,
   type ProjectAnalytics,
 } from '@/lib/services/supabase-mcp';
 
 // Re-exportar enums e tipos do Prisma gerado
-export { $Enums } from '@/lib/generated/prisma';
+export { $Enums } from '@prisma/client';
 
 // Tipos para TypeScript
 export type ProjectStatus = $Enums.ProjectStatus;

@@ -1,8 +1,0 @@
-# Ignore generated code and artifacts
-lib/generated/**
-lib/generated/prisma/**
-
-# Common output directories
-.next/**
-dist/**
-coverage/**

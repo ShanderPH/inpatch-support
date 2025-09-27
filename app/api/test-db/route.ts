@@ -17,24 +17,24 @@ export async function GET() {
 
     console.log('✅ Query raw:', rawResult);
 
-    // Teste 3: Count de tickets
-    const ticketCount = await prisma.ticket.count();
+    // Teste 3: Count de projetos
+    const projectCount = await prisma.project.count();
 
-    console.log('✅ Count tickets:', ticketCount);
+    console.log('✅ Count projects:', projectCount);
 
     // Teste 4: FindMany simples
-    const tickets = await prisma.ticket.findMany({
+    const projects = await prisma.project.findMany({
       take: 5,
     });
 
-    console.log('✅ FindMany tickets:', tickets.length);
+    console.log('✅ FindMany projects:', projects.length);
 
     return NextResponse.json({
       success: true,
       data: {
         database: rawResult,
-        ticketCount,
-        tickets: tickets.length,
+        projectCount,
+        projects: projects.length,
         message: 'Conexão funcionando perfeitamente!',
       },
     });

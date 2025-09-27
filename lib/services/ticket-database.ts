@@ -124,7 +124,7 @@ export class TicketDatabaseService {
           }
 
           // Registrar histórico de sincronização
-          await prisma.syncHistory.create({
+          await prisma.ticketSyncHistory.create({
             data: {
               ticketId: existingTicket?.id,
               action: 'SYNCED',
@@ -146,7 +146,7 @@ export class TicketDatabaseService {
 
           // Registrar erro no histórico (sem ticketId, pois não foi criado)
           try {
-            await prisma.syncHistory.create({
+            await prisma.ticketSyncHistory.create({
               data: {
                 action: 'ERROR',
                 source: 'hubspot',
@@ -286,7 +286,7 @@ export class TicketDatabaseService {
       });
 
       // Registrar histórico
-      await prisma.syncHistory.create({
+      await prisma.ticketSyncHistory.create({
         data: {
           ticketId: prismaTicket.id,
           action: 'CREATED',
@@ -303,7 +303,7 @@ export class TicketDatabaseService {
       console.error('❌ Erro ao criar ticket:', error);
 
       // Registrar erro
-      await prisma.syncHistory.create({
+      await prisma.ticketSyncHistory.create({
         data: {
           action: 'ERROR',
           source: 'api',
@@ -390,7 +390,7 @@ export class TicketDatabaseService {
       });
 
       // Registrar histórico
-      await prisma.syncHistory.create({
+      await prisma.ticketSyncHistory.create({
         data: {
           ticketId,
           action: 'UPDATED',
@@ -406,7 +406,7 @@ export class TicketDatabaseService {
     } catch (error) {
       console.error(`❌ Erro ao atualizar ticket ${ticketId}:`, error);
 
-      await prisma.syncHistory.create({
+      await prisma.ticketSyncHistory.create({
         data: {
           ticketId,
           action: 'ERROR',
@@ -450,7 +450,7 @@ export class TicketDatabaseService {
       });
 
       // Registrar histórico
-      await prisma.syncHistory.create({
+      await prisma.ticketSyncHistory.create({
         data: {
           action: 'DELETED',
           source: 'api',
@@ -463,7 +463,7 @@ export class TicketDatabaseService {
     } catch (error) {
       console.error(`❌ Erro ao deletar ticket ${ticketId}:`, error);
 
-      await prisma.syncHistory.create({
+      await prisma.ticketSyncHistory.create({
         data: {
           ticketId,
           action: 'ERROR',

@@ -99,7 +99,7 @@ export interface HubSpotSearchFilter {
     | 'NOT_HAS_PROPERTY'
     | 'CONTAINS_TOKEN'
     | 'NOT_CONTAINS_TOKEN';
-  value: string | number | boolean;
+  value?: string | number | boolean;
   values?: (string | number | boolean)[];
 }
 

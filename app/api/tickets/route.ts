@@ -44,6 +44,19 @@ const SYSTEM_CONFIG = {
 // GET /api/tickets - Buscar tickets com filtros
 export async function GET(request: NextRequest) {
   try {
+    // Verificar configurações obrigatórias
+    if (!process.env.HUBSPOT_ACCESS_TOKEN) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Configuração incompleta',
+          details:
+            'HubSpot Access Token não configurado. Configure HUBSPOT_ACCESS_TOKEN no arquivo .env.local',
+        },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
 
     // Parse dos parâmetros de query
@@ -78,7 +91,6 @@ export async function GET(request: NextRequest) {
     hubspotFilters.push({
       propertyName: 'hs_pipeline_stage',
       operator: 'IN',
-      value: SYSTEM_CONFIG.ALLOWED_STAGES[0], // Valor obrigatório
       values: [...SYSTEM_CONFIG.ALLOWED_STAGES], // Cópia do array para evitar readonly
     });
 
@@ -167,51 +179,57 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Buscando tickets com cache inteligente...');
 
     try {
-      // Tentar buscar do banco local primeiro
-      const localTickets = await ticketDatabaseService.getLocalTickets(filters);
+      // Verificar se DATABASE_URL está configurado antes de tentar o cache local
+      if (process.env.DATABASE_URL) {
+        // Tentar buscar do banco local primeiro
+        const localTickets =
+          await ticketDatabaseService.getLocalTickets(filters);
 
-      if (localTickets.length > 0) {
-        console.log(
-          `📦 ${localTickets.length} tickets encontrados no cache local`
-        );
+        if (localTickets.length > 0) {
+          console.log(
+            `📦 ${localTickets.length} tickets encontrados no cache local`
+          );
 
-        // Filtrar tickets conforme critérios do sistema inPatch
-        const filteredTickets = localTickets.filter(ticket => {
-          // Deve ter técnico atribuído
-          if (!ticket.hubspotOwnerId) return false;
+          // Filtrar tickets conforme critérios do sistema inPatch
+          const filteredTickets = localTickets.filter(ticket => {
+            // Deve ter técnico atribuído
+            if (!ticket.hubspotOwnerId) return false;
 
-          // Técnico deve estar autorizado
-          if (
-            !SYSTEM_CONFIG.AUTHORIZED_OWNERS.includes(
-              ticket.hubspotOwnerId as any
+            // Técnico deve estar autorizado
+            if (
+              !SYSTEM_CONFIG.AUTHORIZED_OWNERS.includes(
+                ticket.hubspotOwnerId as any
+              )
             )
-          )
-            return false;
+              return false;
 
-          // Deve estar em um dos stages permitidos
-          if (
-            !(SYSTEM_CONFIG.ALLOWED_STAGES as readonly string[]).includes(
-              ticket.pipelineStageId
+            // Deve estar em um dos stages permitidos
+            if (
+              !(SYSTEM_CONFIG.ALLOWED_STAGES as readonly string[]).includes(
+                ticket.pipelineStageId
+              )
             )
-          )
-            return false;
+              return false;
 
-          return true;
-        });
+            return true;
+          });
 
-        const response = {
-          success: true,
-          data: {
-            tickets: filteredTickets,
-            total: filteredTickets.length,
-            hasMore: false,
-            lastUpdated: new Date().toISOString(),
-            source: 'local_cache',
-          },
-          message: `${filteredTickets.length} tickets encontrados (cache local)`,
-        };
+          const response = {
+            success: true,
+            data: {
+              tickets: filteredTickets,
+              total: filteredTickets.length,
+              hasMore: false,
+              lastUpdated: new Date().toISOString(),
+              source: 'local_cache',
+            },
+            message: `${filteredTickets.length} tickets encontrados (cache local)`,
+          };
 
-        return NextResponse.json(response);
+          return NextResponse.json(response);
+        }
+      } else {
+        console.warn('⚠️ DATABASE_URL não configurado, pulando cache local');
       }
     } catch (localError) {
       console.warn(
@@ -250,15 +268,17 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
-    // Tentar sincronizar com banco local em background
-    setImmediate(async () => {
-      try {
-        await ticketDatabaseService.syncFromHubSpot(filters);
-        console.log('✅ Sincronização em background concluída');
-      } catch (syncError) {
-        console.warn('⚠️ Erro na sincronização em background:', syncError);
-      }
-    });
+    // Tentar sincronizar com banco local em background (somente se DATABASE_URL estiver configurado)
+    if (process.env.DATABASE_URL) {
+      setImmediate(async () => {
+        try {
+          await ticketDatabaseService.syncFromHubSpot(filters);
+          console.log('✅ Sincronização em background concluída');
+        } catch (syncError) {
+          console.warn('⚠️ Erro na sincronização em background:', syncError);
+        }
+      });
+    }
 
     const response = {
       success: true,
@@ -291,6 +311,19 @@ export async function GET(request: NextRequest) {
 // POST /api/tickets - Criar novo ticket
 export async function POST(request: NextRequest) {
   try {
+    // Verificar configurações obrigatórias
+    if (!process.env.HUBSPOT_ACCESS_TOKEN) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Configuração incompleta',
+          details:
+            'HubSpot Access Token não configurado. Configure HUBSPOT_ACCESS_TOKEN no arquivo .env.local',
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
 
     console.log('🎫 POST /api/tickets - Body:', body);
@@ -335,16 +368,23 @@ export async function POST(request: NextRequest) {
     console.log('🎫 Criando ticket com sincronização completa...');
 
     try {
-      // Criar via ticketDatabaseService (que já faz a sincronização HubSpot ↔ Prisma)
-      const ticket = await ticketDatabaseService.createTicket(ticketData);
+      // Criar via ticketDatabaseService apenas se DATABASE_URL estiver configurado
+      if (process.env.DATABASE_URL) {
+        const ticket = await ticketDatabaseService.createTicket(ticketData);
 
-      const response = {
-        success: true,
-        data: { ticket },
-        message: 'Ticket criado com sucesso (sincronizado)',
-      };
+        const response = {
+          success: true,
+          data: { ticket },
+          message: 'Ticket criado com sucesso (sincronizado)',
+        };
 
-      return NextResponse.json(response, { status: 201 });
+        return NextResponse.json(response, { status: 201 });
+      } else {
+        console.warn(
+          '⚠️ DATABASE_URL não configurado, criando apenas no HubSpot'
+        );
+        throw new Error('Database não configurado, usando fallback HubSpot');
+      }
     } catch (createError) {
       console.warn(
         '⚠️ Erro na criação via database service, fallback para HubSpot direto:',

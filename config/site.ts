@@ -9,11 +9,19 @@ export const siteConfig = {
       label: 'Projetos',
       href: '/',
     },
+    {
+      label: 'Tickets',
+      href: '/tickets',
+    },
   ],
   navMenuItems: [
     {
       label: 'Projetos',
       href: '/',
+    },
+    {
+      label: 'Tickets',
+      href: '/tickets',
     },
   ],
   links: {

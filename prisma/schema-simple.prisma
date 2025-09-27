@@ -27,18 +27,15 @@ model Ticket {
   hubspotOwnerId      String?        @map("hubspot_owner_id")
   sourceType          String?        @map("source_type")
   tags                String[]       @default([])
-
+  
   // Timestamps
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
   closedAt            DateTime?      @map("closed_at")
-
+  
   // HubSpot specific fields
   hubspotCreatedAt    DateTime?      @map("hubspot_created_at")
   hubspotUpdatedAt    DateTime?      @map("hubspot_updated_at")
-
-  // Relations
-  syncHistory         SyncHistory[]
 
   @@map("tickets")
   @@index([hubspotId])
@@ -51,25 +48,6 @@ model Ticket {
   @@index([updatedAt])
 }
 
-model SyncHistory {
-  id          String     @id @default(cuid())
-  ticketId    String?    @map("ticket_id")
-  action      SyncAction
-  timestamp   DateTime   @default(now())
-  source      String     // "hubspot" | "api"
-  details     Json?
-  success     Boolean    @default(true)
-  errorMessage String?   @map("error_message")
-
-  ticket      Ticket?    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-
-  @@map("sync_history")
-  @@index([ticketId])
-  @@index([timestamp])
-  @@index([source])
-  @@index([success])
-}
-
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -79,7 +57,6 @@ enum TicketPriority {
   MEDIUM @map("medium")
   HIGH   @map("high")
   URGENT @map("urgent")
-
 }
 
 enum TicketStatus {
@@ -88,14 +65,4 @@ enum TicketStatus {
   WAITING    @map("waiting")
   CLOSED     @map("closed")
   RESOLVED   @map("resolved")
-
-}
-
-enum SyncAction {
-  CREATED
-  UPDATED
-  DELETED
-  SYNCED
-  ERROR
-
 }

@@ -46,7 +46,7 @@ export function ProjectEditor({
   const isEdit = !!project;
 
   // Reset fields when modal changes
-  const resetMemo = useMemo(
+  useMemo(
     () => ({ projectId: project?.id || project?.trelloCardId || '' }),
     [project]
   );

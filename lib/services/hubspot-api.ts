@@ -319,6 +319,36 @@ export class HubSpotApiService {
   // ============================================================================
 
   /**
+   * Sanitizar filtros para evitar valores inválidos no JSON
+   */
+  private sanitizeFilters(filterGroups: Array<{ filters: HubSpotSearchFilter[] }>): Array<{ filters: HubSpotSearchFilter[] }> {
+    return filterGroups.map(group => ({
+      filters: group.filters.map(filter => {
+        const sanitizedFilter: any = {
+          propertyName: filter.propertyName,
+          operator: filter.operator,
+        };
+
+        // Apenas adicionar 'value' se não for HAS_PROPERTY ou NOT_HAS_PROPERTY
+        if (filter.operator !== 'HAS_PROPERTY' && filter.operator !== 'NOT_HAS_PROPERTY') {
+          if (filter.value !== undefined && filter.value !== null) {
+            sanitizedFilter.value = filter.value;
+          }
+          if (filter.values !== undefined && filter.values !== null && Array.isArray(filter.values)) {
+            sanitizedFilter.values = filter.values.filter(v => v !== undefined && v !== null);
+          }
+        }
+
+        return sanitizedFilter;
+      }).filter(filter =>
+        filter.propertyName &&
+        filter.operator &&
+        (filter.operator === 'HAS_PROPERTY' || filter.operator === 'NOT_HAS_PROPERTY' || filter.value !== undefined || (filter.values && filter.values.length > 0))
+      )
+    }));
+  }
+
+  /**
    * Buscar todos os tickets com filtros e paginação
    */
   async getTickets(
@@ -349,8 +379,11 @@ export class HubSpotApiService {
       ...(filters?.filterGroups || []),
     ];
 
+    // Sanitizar filtros antes de enviar para o HubSpot
+    const sanitizedFilterGroups = this.sanitizeFilters(allFilterGroups);
+
     const searchPayload: HubSpotSearchRequest = {
-      filterGroups: allFilterGroups,
+      filterGroups: sanitizedFilterGroups,
       sorts: filters?.sorts || [
         { propertyName: 'hs_lastmodifieddate', direction: 'DESCENDING' },
       ],
@@ -372,6 +405,9 @@ export class HubSpotApiService {
       limit: filters?.limit || 100,
       after: filters?.after,
     };
+
+    // Log detalhado do payload para debug em produção
+    console.log('🔍 HubSpot Search Payload:', JSON.stringify(searchPayload, null, 2));
 
     return this.makeRequest<HubSpotSearchResponse<HubSpotTicket>>(
       '/crm/v3/objects/tickets/search',

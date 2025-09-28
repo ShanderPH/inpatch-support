@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     hubspotFilters.push({
       propertyName: 'hs_pipeline_stage',
       operator: 'IN',
-      values: [...SYSTEM_CONFIG.ALLOWED_STAGES], // Cópia do array para evitar readonly
+      values: SYSTEM_CONFIG.ALLOWED_STAGES.slice(), // Cópia explícita do array
     });
 
     // FILTRO OBRIGATÓRIO: Apenas tickets com técnico atribuído
@@ -204,11 +204,7 @@ export async function GET(request: NextRequest) {
               return false;
 
             // Deve estar em um dos stages permitidos
-            if (
-              !(SYSTEM_CONFIG.ALLOWED_STAGES as readonly string[]).includes(
-                ticket.pipelineStageId
-              )
-            )
+            if (!SYSTEM_CONFIG.ALLOWED_STAGES.includes(ticket.pipelineStageId as any))
               return false;
 
             return true;
@@ -258,11 +254,7 @@ export async function GET(request: NextRequest) {
         return false;
 
       // Deve estar em um dos stages permitidos
-      if (
-        !(SYSTEM_CONFIG.ALLOWED_STAGES as readonly string[]).includes(
-          ticket.pipelineStageId
-        )
-      )
+      if (!SYSTEM_CONFIG.ALLOWED_STAGES.includes(ticket.pipelineStageId as any))
         return false;
 
       return true;

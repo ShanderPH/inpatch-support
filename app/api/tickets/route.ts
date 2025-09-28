@@ -91,14 +91,13 @@ export async function GET(request: NextRequest) {
     hubspotFilters.push({
       propertyName: 'hs_pipeline_stage',
       operator: 'IN',
-      values: SYSTEM_CONFIG.ALLOWED_STAGES.slice(), // Cópia explícita do array
+      values: [...SYSTEM_CONFIG.ALLOWED_STAGES], // Spread operator para evitar referência circular
     });
 
     // FILTRO OBRIGATÓRIO: Apenas tickets com técnico atribuído
     hubspotFilters.push({
       propertyName: 'hubspot_owner_id',
       operator: 'HAS_PROPERTY',
-      value: '',
     });
 
     // Filtro por owner
@@ -142,19 +141,25 @@ export async function GET(request: NextRequest) {
 
     // Filtro por data de criação
     if (filters.dateFrom) {
-      hubspotFilters.push({
-        propertyName: 'createdate',
-        operator: 'GTE',
-        value: new Date(filters.dateFrom).getTime(),
-      });
+      const fromDate = new Date(filters.dateFrom);
+      if (!isNaN(fromDate.getTime())) {
+        hubspotFilters.push({
+          propertyName: 'createdate',
+          operator: 'GTE',
+          value: fromDate.getTime().toString(),
+        });
+      }
     }
 
     if (filters.dateTo) {
-      hubspotFilters.push({
-        propertyName: 'createdate',
-        operator: 'LTE',
-        value: new Date(filters.dateTo).getTime(),
-      });
+      const toDate = new Date(filters.dateTo);
+      if (!isNaN(toDate.getTime())) {
+        hubspotFilters.push({
+          propertyName: 'createdate',
+          operator: 'LTE',
+          value: toDate.getTime().toString(),
+        });
+      }
     }
 
     // Filtro por busca textual (subject)
